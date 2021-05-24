@@ -1,0 +1,38 @@
+#!/bin/bash
+
+set -e
+set -a
+
+pushd  "$( dirname "${BASH_SOURCE[0]}" )/.." >/dev/null
+
+. constants/OSMOSIS_VERSION
+
+OSMOSIS_VERSION_NAME="osmosis-$OSMOSIS_VERSION"
+OSMOSIS_VERSION_TGZ="$OSMOSIS_VERSION_NAME.tgz"
+RELEASE_URL="https://github.com/openstreetmap/osmosis/releases/download/$OSMOSIS_VERSION/$OSMOSIS_VERSION_TGZ"
+
+OSMOSIS_DIR="lib/osmosis"
+OSMOSIS_VERSION_DIR="$OSMOSIS_DIR/$OSMOSIS_VERSION_NAME"
+OSMOSIS_VERSION_TGZ_PATH="$OSMOSIS_DIR/$OSMOSIS_VERSION_TGZ"
+
+OSMOSIS_VERSION_DIR="$OSMOSIS_DIR/$OSMOSIS_VERSION_NAME"
+
+if [ -d "$OSMOSIS_VERSION_DIR" ]
+then
+  echo "Osmosis version already exists in lib/ directory."
+  exit
+fi
+
+mkdir -p "$OSMOSIS_VERSION_DIR"
+
+echo "Downloading $OSMOSIS_VERSION_NAME release from GitHub"
+curl -s -L "$RELEASE_URL" > "$OSMOSIS_VERSION_DIR/$OSMOSIS_VERSION_TGZ"
+
+pushd "$OSMOSIS_VERSION_DIR" >/dev/null
+
+pwd
+tar zxf "$OSMOSIS_VERSION_TGZ"
+
+popd >/dev/null
+
+popd >/dev/null

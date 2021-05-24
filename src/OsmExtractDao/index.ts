@@ -1,7 +1,7 @@
 // TODO: Should verify that GPKG's modified timestamp > PBF's.
 
 import { execSync } from 'child_process';
-import { writeFileSync, existsSync, chmodSync } from 'fs';
+import { mkdirSync, writeFileSync, existsSync, chmodSync } from 'fs';
 import { join } from 'path';
 import gdal, { Dataset } from 'gdal-next';
 import * as turf from '@turf/turf';
@@ -9,15 +9,47 @@ import * as turf from '@turf/turf';
 import osmDir from '../constants/osmDataDir';
 import osmBoundaryAdministrationLevelCodes from '../constants/osmBoundaryAdministrationLevelCodes';
 
+import isValidExtractAreaName from '../utils/isValidExtractAreaName';
 import isValidOsmVersionExtractName from '../utils/isValidOsmVersionExtractName';
 import getOsmosisExtractFilter from '../utils/getOsmosisExtractFilter';
-import getExtractName from '../utils/getExtractName';
 
-import { AdministrationLevel } from '../domain/types';
+import { AdministrationLevel, AdministrationAreaName } from '../domain/types';
 
 gdal.verbose();
 
-export default class OsmPbfFileHandler {
+export type OsmMultipolygonQueryObj = Record<string, string | number>;
+
+const osmosisExecutable = join(
+  __dirname,
+  '../../lib/osmosis/osmosis-0.48.3/bin/osmosis',
+);
+
+export default class OsmExtractDao {
+  static getExtractDirectoryPath(extractName: string) {
+    return join(osmDir, extractName);
+  }
+
+  static getCleanedExtractAreaName(extractAreaName: string) {
+    return extractAreaName
+      .replace(/[^a-z0-9_-]{1,}/g, '-')
+      .replace(/-{1,}/, '-');
+  }
+
+  static getAdministrativeAreaExtractNamePrefix(
+    adminLevel: AdministrationLevel,
+    name: string,
+  ) {
+    let n = name.toLowerCase();
+
+    if (n.endsWith(adminLevel)) {
+      n = n.replace(new RegExp(`${adminLevel}$`, 'i'), '');
+    }
+
+    n = OsmExtractDao.getCleanedExtractAreaName(`${n}-${adminLevel}`);
+
+    return n;
+  }
+
   readonly osmVersionExtractName: string;
   readonly osmVersionExtractDir: string;
   readonly pbfFileName: string;
@@ -36,7 +68,9 @@ export default class OsmPbfFileHandler {
     }
 
     this.osmVersionExtractName = osmVersionExtractName;
-    this.osmVersionExtractDir = join(osmDir, this.osmVersionExtractName);
+    this.osmVersionExtractDir = OsmExtractDao.getExtractDirectoryPath(
+      this.osmVersionExtractName,
+    );
 
     if (!existsSync(this.osmVersionExtractDir)) {
       throw new Error(
@@ -106,7 +140,7 @@ export default class OsmPbfFileHandler {
     return this.gpkgDataset.layers.map((l) => l.name);
   }
 
-  getMultiPolygon(query: Record<string, string | number>) {
+  getMultiPolygon(query: OsmMultipolygonQueryObj) {
     try {
       const whereClause = Object.keys(query)
         .map((k) => `( ${k} = '${query[k]}' )`)
@@ -120,6 +154,9 @@ export default class OsmPbfFileHandler {
       `;
 
       console.log(sql);
+
+      // NOTE: This could be replaced with call to ogr2ogr -f GeoJSON ....
+      //       Which would allow us to use node-gdal rather than node-gdal-next.
       const result = this.gpkgDataset.executeSQL(sql, undefined, 'SQLITE');
 
       if (result.features.count(true) === 0) {
@@ -147,26 +184,58 @@ export default class OsmPbfFileHandler {
     }
   }
 
-  getOsmosisFilterPoly(name: string, query: Record<string, number | string>) {
+  getOsmosisFilterPoly(extractName: string, query: OsmMultipolygonQueryObj) {
     const geojsonPoly = this.getMultiPolygon(query);
 
     if (geojsonPoly === null) {
       throw new Error('Unable to create MultiPolygon');
     }
 
-    const polyfileData = getOsmosisExtractFilter(geojsonPoly, name);
-
-    // const polyfileName = name + '.poly';
-    const polyfileName = `${name}.poly`;
-
-    writeFileSync(polyfileName, polyfileData);
+    const polyfileData = getOsmosisExtractFilter(geojsonPoly, extractName);
 
     return polyfileData;
   }
 
+  createExtract(extractName: string, query: OsmMultipolygonQueryObj) {
+    console.log(extractName);
+    if (!isValidOsmVersionExtractName(extractName)) {
+      throw new Error(`Invalid osmVersionExtractName: ${extractName}`);
+    }
+
+    const extractDirPath = OsmExtractDao.getExtractDirectoryPath(extractName);
+
+    if (existsSync(extractDirPath)) {
+      throw new Error(
+        `OSM Version Extract directory already exists at ${extractDirPath}`,
+      );
+    }
+
+    mkdirSync(extractDirPath, { recursive: true });
+
+    const poly = this.getOsmosisFilterPoly(extractName, query);
+    const polyFilePath = join(extractDirPath, `${extractName}.poly`);
+
+    writeFileSync(polyFilePath, poly);
+
+    const extractPbfFilePath = join(extractDirPath, `${extractName}.osm.pbf`);
+
+    const command = `${osmosisExecutable} \
+      --read-pbf-fast file=${this.pbfFilePath} \
+      --sort type="TypeThenId" \
+      --bounding-polygon \
+          file=${polyFilePath} \
+          completeWays=yes \
+      --write-pbf ${extractPbfFilePath}
+    `;
+
+    execSync(command);
+
+    execSync(`xz -9 ${polyFilePath}`);
+  }
+
   getMultiPolygonQueryForAdminRegion(
     adminLevel: AdministrationLevel,
-    name: string,
+    name: AdministrationAreaName,
   ) {
     return {
       type: 'boundary',
@@ -176,9 +245,42 @@ export default class OsmPbfFileHandler {
     };
   }
 
-  getAdministrativeBoundaryPolygon(
+  getExtractName(extractAreaName: string) {
+    if (!isValidExtractAreaName(extractAreaName)) {
+      throw new Error(`Invalid extractAreaName: ${extractAreaName}`);
+    }
+
+    const extractName = `${extractAreaName}_${this.osmVersionExtractName}`;
+
+    return extractName;
+  }
+
+  // NOTE: '_' reserved as separator between admistraction area extraction layers
+  //       So we could have town-of-berne_albany-county_new-york-state_us-northeast-region_planet-210101
+  //         if we create the OSM version extract as follows:
+  //           1. Download us-northeast-210101.osm.pbf from GEOFABRIK as us-northeast-region_planet-210101
+  //           2. Extract new-york-state from us-northeast-region_planet-210101
+  //           3. Extract albany-county from new-york-state_us-northeast-region_planet-210101
+  //           4. Extract town-of-berne from albany-county_new-york-state_us-northeast-region_planet-210101.
+  //
+  //       Thus preserving the OSM Version Extract's lineage in its name.
+  getAdministrativeAreaExtractName(
     adminLevel: AdministrationLevel,
-    name: string,
+    name: AdministrationAreaName,
+  ) {
+    const cleanedName = OsmExtractDao.getAdministrativeAreaExtractNamePrefix(
+      adminLevel,
+      name,
+    );
+
+    const extractName = `${cleanedName}_${this.osmVersionExtractName}`;
+
+    return extractName;
+  }
+
+  getAdministrativeBoundaryMultiPolygon(
+    adminLevel: AdministrationLevel,
+    name: AdministrationAreaName,
   ) {
     const q = this.getMultiPolygonQueryForAdminRegion(adminLevel, name);
 
@@ -187,14 +289,23 @@ export default class OsmPbfFileHandler {
 
   getAdministrativeBoundaryOsmosisFilterPoly(
     adminLevel: AdministrationLevel,
-    name: string,
+    name: AdministrationAreaName,
   ) {
-    const cleanedName = getExtractName(name, adminLevel);
-
-    const extractName = `${cleanedName}-${this.osmVersionExtractName}`;
+    const extractName = this.getAdministrativeAreaExtractName(adminLevel, name);
 
     const q = this.getMultiPolygonQueryForAdminRegion(adminLevel, name);
 
     return this.getOsmosisFilterPoly(extractName, q);
+  }
+
+  createAdministrativeRegionExtract(
+    adminLevel: AdministrationLevel,
+    name: AdministrationAreaName,
+  ) {
+    const extractName = this.getAdministrativeAreaExtractName(adminLevel, name);
+
+    const q = this.getMultiPolygonQueryForAdminRegion(adminLevel, name);
+
+    this.createExtract(extractName, q);
   }
 }

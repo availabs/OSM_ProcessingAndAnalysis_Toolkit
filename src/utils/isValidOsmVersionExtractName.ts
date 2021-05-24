@@ -1,5 +1,5 @@
 import isValidOsmVersionNumber from './isValidOsmVersionNumber';
-import isValidExtractRegionName from './isValidExtractRegionName';
+import isValidExtractAreaName from './isValidExtractAreaName';
 
 export default function (osmVersionExtractName: string) {
   const osmVersionNumberMatch = osmVersionExtractName.match(/\d{6}$/);
@@ -15,7 +15,7 @@ export default function (osmVersionExtractName: string) {
     return null;
   }
 
-  const extractRegionName = osmVersionExtractName.replace(/-\d{6}/, '');
+  const extractAreas = osmVersionExtractName.replace(/-\d{6}/, '').split(/_/);
 
-  return isValidExtractRegionName(extractRegionName);
-};
+  return extractAreas.every((e) => isValidExtractAreaName(e));
+}
