@@ -1,0 +1,58 @@
+{
+  "name": "avail-osm-toolkit",
+  "version": "0.0.1",
+  "description": "A collection of code for working with OpenStreetMaps data.",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/availabs/avail-osm-toolkit.git"
+  },
+  "author": "Paul Tomchik",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/availabs/avail-osm-toolkit/issues"
+  },
+  "homepage": "https://github.com/availabs/avail-osm-toolkit#readme",
+  "dependencies": {
+    "@turf/helpers": "^6.3.0",
+    "@turf/turf": "^6.3.0",
+    "gdal-next": "^2.8.0",
+    "lodash": "^4.17.21",
+    "yargs": "^17.0.1"
+  },
+  "devDependencies": {
+    "@types/gdal": "^0.9.1",
+    "@types/node": "^15.6.0",
+    "@types/yargs": "^17.0.0",
+    "@typescript-eslint/eslint-plugin": "^4.24.0",
+    "@typescript-eslint/parser": "^4.24.0",
+    "eslint": "^7.27.0",
+    "eslint-config-prettier": "^8.3.0",
+    "husky": "^6.0.0",
+    "lint-staged": "^11.0.0",
+    "prettier": "^2.3.0",
+    "tap-spec": "^5.0.0",
+    "tape": "^5.2.2",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.2.4"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "./src/**/*.{js,ts}": [
+      "eslint --fix"
+    ]
+  }
+}
