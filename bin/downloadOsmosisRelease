@@ -5,7 +5,7 @@ set -a
 
 pushd  "$( dirname "${BASH_SOURCE[0]}" )/.." >/dev/null
 
-. constants/OSMOSIS_VERSION
+OSMOSIS_VERSION='0.48.3'
 
 OSMOSIS_VERSION_NAME="osmosis-$OSMOSIS_VERSION"
 OSMOSIS_VERSION_TGZ="$OSMOSIS_VERSION_NAME.tgz"
