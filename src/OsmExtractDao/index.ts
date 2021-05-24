@@ -1,5 +1,7 @@
 // TODO: Should verify that GPKG's modified timestamp > PBF's.
 
+// For possible extract formats and styles see https://extract.bbbike.org/extract-screenshots.html
+
 import { execSync } from 'child_process';
 import { mkdirSync, writeFileSync, existsSync, chmodSync } from 'fs';
 import { join } from 'path';
@@ -108,7 +110,7 @@ export default class OsmExtractDao {
   // Because executeSQL fails with "Too many features have accumulated in points layer" error,
   //   we create a GPKG so we can get administrative boundaries with executeSQL.
   // See https://gdal.org/drivers/vector/osm.html#interleaved-reading
-  createGkpg() {
+  createGPKG() {
     if (this.gpkgExists) {
       throw new Error('GPKG already exists.');
     }
@@ -128,7 +130,7 @@ export default class OsmExtractDao {
 
   protected get gpkgDataset() {
     if (!this.gpkgExists) {
-      this.createGkpg();
+      this.createGPKG();
     }
 
     this._gpkgDataset =
@@ -307,5 +309,135 @@ export default class OsmExtractDao {
     const q = this.getMultiPolygonQueryForAdminRegion(adminLevel, name);
 
     this.createExtract(extractName, q);
+  }
+
+  get vrtFileName() {
+    return `${this.osmVersionExtractName}.vrt`;
+  }
+
+  get vrtFilePath() {
+    return join(this.osmVersionExtractDir, this.vrtFileName);
+  }
+
+  // https://gdal.org/drivers/vector/vrt.html
+  // https://gis.stackexchange.com/a/79179
+  createVRTFile() {
+    // NOTE: SrcSQL could be used to create thematic layers.
+    const vrt = `<OGRVRTDataSource>
+    <OGRVRTUnionLayer name="${this.osmVersionExtractName}">
+        <OGRVRTLayer name="points">
+            <SrcDataSource>${this.pbfFileName}</SrcDataSource>
+            <SrcLayer>points</SrcLayer>
+        </OGRVRTLayer>
+        <OGRVRTLayer name="lines">
+            <SrcDataSource>${this.pbfFileName}</SrcDataSource>
+            <SrcLayer>lines</SrcLayer>
+        </OGRVRTLayer>
+        <OGRVRTLayer name="multilinestrings">
+            <SrcDataSource>${this.pbfFileName}</SrcDataSource>
+            <SrcLayer>multilinestrings</SrcLayer>
+        </OGRVRTLayer>
+        <OGRVRTLayer name="multipolygons">
+            <SrcDataSource>${this.pbfFileName}</SrcDataSource>
+            <SrcLayer>multipolygons</SrcLayer>
+        </OGRVRTLayer>
+        <GeometryType>wkbGeometryCollection</GeometryType>
+    </OGRVRTUnionLayer>
+</OGRVRTDataSource>`;
+
+    writeFileSync(this.vrtFilePath, vrt);
+  }
+
+  // FIXME: Should use an improved VRT file that has thematic layers.
+  //       See:
+  //            * https://wiki.openstreetmap.org/wiki/Shapefiles
+  //            * https://osmdata.openstreetmap.de/processing/software.html
+  //              * https://github.com/fossgis/osmdata/
+  //            * https://wiki.openstreetmap.org/wiki/User:Bgirardot/How_To_Convert_osm_.pbf_files_to_Esri_Shapefiles
+  createShapefile() {
+    const shapefileParentDir = join(
+      this.osmVersionExtractDir,
+      'ESRI_Shapefile',
+    );
+    // const shapefilePath = join(shapefileParentDir, this.osmVersionExtractName);
+    const shapefilePath = join(shapefileParentDir, this.osmVersionExtractName);
+
+    if (existsSync(shapefilePath)) {
+      throw new Error(`${shapefilePath} already exists.`);
+    }
+
+    mkdirSync(shapefileParentDir, { recursive: true });
+
+    execSync(`ogr2ogr \
+      -skipfailures \
+      -f 'ESRI Shapefile' \
+      '${shapefilePath}' \
+      '${this.pbfFilePath}' points \
+      -nlt POINT
+    `);
+
+    execSync(`ogr2ogr \
+      -append \
+      -f 'ESRI Shapefile' \
+      '${shapefilePath}' \
+      '${this.pbfFilePath}' lines \
+      -nlt LINESTRING
+    `);
+
+    execSync(`ogr2ogr \
+      -append \
+      -f 'ESRI Shapefile' \
+      '${shapefilePath}' \
+      '${this.pbfFilePath}' multilinestrings \
+      -nlt MULTILINESTRING
+    `);
+
+    execSync(`ogr2ogr \
+      -append \
+      -f 'ESRI Shapefile' \
+      '${shapefilePath}' \
+      '${this.pbfFilePath}' multipolygons \
+      -nlt MULTIPOLYGON
+    `);
+
+    /*
+       // FIXME: This Breaks.
+    execSync(`ogr2ogr \
+      -append \
+      -skipfailures \
+      -f 'ESRI Shapefile' \
+      '${shapefilePath}' \
+      '${this.pbfFilePath}' other_relations \
+    `);
+    */
+  }
+
+  createXml() {
+    const xmlFileName = `${this.osmVersionExtractName}.osm`;
+    const xmlPath = join(this.osmVersionExtractDir, xmlFileName);
+
+    const command = `${osmosisExecutable} \
+      --read-pbf-fast file=${this.pbfFilePath} \
+      --sort type="TypeThenId" \
+      --write-xml ${xmlPath}
+    `;
+
+    execSync(command);
+  }
+
+  createGeoJSON() {
+    const geoJsonFileName = `${this.osmVersionExtractName}.osm.geojson`;
+
+    this.createVRTFile();
+
+    execSync(
+      `ogr2ogr \
+      -skipfailures \
+      -f 'GeoJSON' \
+      '${geoJsonFileName}' \
+      '${this.vrtFileName}'
+    `,
+      { cwd: this.osmVersionExtractDir },
+    );
   }
 }
