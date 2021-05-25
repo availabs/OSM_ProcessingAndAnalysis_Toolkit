@@ -457,6 +457,7 @@ export default class OsmExtractDao {
     execSync(
       `ogr2ogr \
       -skipfailures \
+      -nln 'roadways' \
       -f 'GeoJSON' \
       -sql '@${osmRoadwaysSqlPath}' \
       '${roadwaysGeoJsonFileName}' \
@@ -487,6 +488,7 @@ export default class OsmExtractDao {
       `ogr2ogr \
       -overwrite \
       -skipfailures \
+      -nln 'roadways' \
       -f 'ESRI Shapefile' \
       -sql '@${osmRoadwaysSqlPath}' \
       '${roadwaysShapefileName}' \
