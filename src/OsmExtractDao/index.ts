@@ -3,7 +3,14 @@
 // For possible extract formats and styles see https://extract.bbbike.org/extract-screenshots.html
 
 import { execSync } from 'child_process';
-import { mkdirSync, writeFileSync, existsSync, chmodSync } from 'fs';
+import {
+  mkdirSync,
+  writeFileSync,
+  existsSync,
+  chmodSync,
+  rmdirSync,
+  openSync,
+} from 'fs';
 import { join } from 'path';
 import gdal, { Dataset } from 'gdal-next';
 import * as turf from '@turf/turf';
@@ -20,6 +27,9 @@ import { AdministrationLevel, AdministrationAreaName } from '../domain/types';
 gdal.verbose();
 
 export type OsmMultipolygonQueryObj = Record<string, string | number>;
+
+const osmRoadwaysSqlPath = join(__dirname, './osm_roadways.sql');
+const osmRoadwayConfigFilePath = join(__dirname, './roadways_osmconf.ini');
 
 const osmosisExecutable = join(
   __dirname,
@@ -438,6 +448,55 @@ export default class OsmExtractDao {
       '${this.vrtFileName}'
     `,
       { cwd: this.osmVersionExtractDir },
+    );
+  }
+
+  createRoadwaysGeoJSON() {
+    const roadwaysGeoJsonFileName = `${this.osmVersionExtractName}.roadways.geojson`;
+
+    execSync(
+      `ogr2ogr \
+      -skipfailures \
+      -f 'GeoJSON' \
+      -sql '@${osmRoadwaysSqlPath}' \
+      '${roadwaysGeoJsonFileName}' \
+      '${this.pbfFileName}'
+    `,
+      {
+        cwd: this.osmVersionExtractDir,
+        env: { ...process.env, OSM_CONFIG_FILE: osmRoadwayConfigFilePath },
+      },
+    );
+  }
+
+  createRoadwaysShapefile() {
+    const roadwaysShapefileName = `${this.osmVersionExtractName}_roadways`;
+    const log = 'shapefile_creation.log';
+    const roadwaysShapefilePath = join(
+      this.osmVersionExtractDir,
+      roadwaysShapefileName,
+    );
+    const logPath = join(roadwaysShapefilePath, log);
+
+    rmdirSync(roadwaysShapefilePath, { recursive: true });
+    mkdirSync(roadwaysShapefilePath, { recursive: true });
+
+    const logFileFd = openSync(logPath, 'w');
+
+    execSync(
+      `ogr2ogr \
+      -overwrite \
+      -skipfailures \
+      -f 'ESRI Shapefile' \
+      -sql '@${osmRoadwaysSqlPath}' \
+      '${roadwaysShapefileName}' \
+      '${this.pbfFileName}'
+    `,
+      {
+        cwd: this.osmVersionExtractDir,
+        env: { ...process.env, OSM_CONFIG_FILE: osmRoadwayConfigFilePath },
+        stdio: ['inherit', logFileFd, logFileFd],
+      },
     );
   }
 }
