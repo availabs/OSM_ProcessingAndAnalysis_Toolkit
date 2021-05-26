@@ -22,13 +22,18 @@ import * as turf from '@turf/turf';
 import osmDir from '../constants/osmDataDir';
 import { osmosisExecutablePath } from '../constants/osmosis';
 
-import osmBoundaryAdministrationLevelCodes from '../constants/osmBoundaryAdministrationLevelCodes';
+import osmBoundaryAdministrationLevelCodes from './constants/osmBoundaryAdministrationLevelCodes';
+
+import { ogr2ogrVersion } from '../constants/ogr2ogr';
 
 import isValidExtractAreaName from '../utils/isValidExtractAreaName';
 import isValidOsmVersionExtractName from '../utils/isValidOsmVersionExtractName';
 import getOsmosisExtractFilter from '../utils/getOsmosisExtractFilter';
 
-import { AdministrationLevel, AdministrationAreaName } from '../domain/types';
+import {
+  OsmAdministrationLevel,
+  OsmAdministrationAreaName,
+} from './domain/types';
 
 gdal.verbose();
 
@@ -49,7 +54,7 @@ export default class OsmDao {
   }
 
   static getAdministrativeAreaExtractNamePrefix(
-    adminLevel: AdministrationLevel,
+    adminLevel: OsmAdministrationLevel,
     name: string,
   ) {
     let n = name.toLowerCase();
@@ -118,6 +123,12 @@ export default class OsmDao {
     return existsSync(this.gpkgFilePath);
   }
 
+  protected verifyOgr2OgrInstalled() {
+    if (ogr2ogrVersion === null) {
+      throw new Error('ogr2ogr is not installed on the system.');
+    }
+  }
+
   // Because executeSQL fails with "Too many features have accumulated in points layer" error,
   //   we create a GPKG so we can get administrative boundaries with executeSQL.
   // See https://gdal.org/drivers/vector/osm.html#interleaved-reading
@@ -125,6 +136,8 @@ export default class OsmDao {
     if (this.gpkgExists) {
       throw new Error('GPKG already exists.');
     }
+
+    this.verifyOgr2OgrInstalled();
 
     console.log('creating GPKG');
 
@@ -247,8 +260,8 @@ export default class OsmDao {
   }
 
   getMultiPolygonQueryForAdminRegion(
-    adminLevel: AdministrationLevel,
-    name: AdministrationAreaName,
+    adminLevel: OsmAdministrationLevel,
+    name: OsmAdministrationAreaName,
   ) {
     return {
       type: 'boundary',
@@ -277,9 +290,12 @@ export default class OsmDao {
   //           4. Extract town-of-berne from albany-county_new-york-state_us-northeast-region_planet-210101.
   //
   //       Thus preserving the OSM Version Extract's lineage in its name.
+  //
+  //       TODO: isValidOsmVersionExtractName should make sure that string preceding '_'
+  //               is an OsmAdministrationLevel with s/_/-/g applied.
   getAdministrativeAreaExtractName(
-    adminLevel: AdministrationLevel,
-    name: AdministrationAreaName,
+    adminLevel: OsmAdministrationLevel,
+    name: OsmAdministrationAreaName,
   ) {
     const cleanedName = OsmDao.getAdministrativeAreaExtractNamePrefix(
       adminLevel,
@@ -292,8 +308,8 @@ export default class OsmDao {
   }
 
   getAdministrativeBoundaryMultiPolygon(
-    adminLevel: AdministrationLevel,
-    name: AdministrationAreaName,
+    adminLevel: OsmAdministrationLevel,
+    name: OsmAdministrationAreaName,
   ) {
     const q = this.getMultiPolygonQueryForAdminRegion(adminLevel, name);
 
@@ -301,8 +317,8 @@ export default class OsmDao {
   }
 
   getAdministrativeBoundaryOsmosisFilterPoly(
-    adminLevel: AdministrationLevel,
-    name: AdministrationAreaName,
+    adminLevel: OsmAdministrationLevel,
+    name: OsmAdministrationAreaName,
   ) {
     const extractName = this.getAdministrativeAreaExtractName(adminLevel, name);
 
@@ -312,8 +328,8 @@ export default class OsmDao {
   }
 
   createAdministrativeRegionExtract(
-    adminLevel: AdministrationLevel,
-    name: AdministrationAreaName,
+    adminLevel: OsmAdministrationLevel,
+    name: OsmAdministrationAreaName,
   ) {
     const extractName = this.getAdministrativeAreaExtractName(adminLevel, name);
 
@@ -376,6 +392,8 @@ export default class OsmDao {
     if (existsSync(shapefilePath)) {
       throw new Error(`${shapefilePath} already exists.`);
     }
+
+    this.verifyOgr2OgrInstalled();
 
     mkdirSync(shapefileParentDir, { recursive: true });
 
@@ -441,6 +459,8 @@ export default class OsmDao {
 
     this.createVRTFile();
 
+    this.verifyOgr2OgrInstalled();
+
     execSync(
       `ogr2ogr \
       -skipfailures \
@@ -454,6 +474,8 @@ export default class OsmDao {
 
   createRoadwaysGeoJSON() {
     const roadwaysGeoJsonFileName = `${this.osmVersionExtractName}.roadways.geojson`;
+
+    this.verifyOgr2OgrInstalled();
 
     execSync(
       `ogr2ogr \
@@ -484,6 +506,8 @@ export default class OsmDao {
     mkdirSync(roadwaysShapefilePath, { recursive: true });
 
     const logFileFd = openSync(logPath, 'w');
+
+    this.verifyOgr2OgrInstalled();
 
     execSync(
       `ogr2ogr \
