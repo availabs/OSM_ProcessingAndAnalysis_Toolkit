@@ -1,5 +1,9 @@
 // TODO: Should verify that GPKG's modified timestamp > PBF's.
 
+// See:
+//      https://gdal.org/drivers/vector/osm.html
+//      https://raw.githubusercontent.com/OSGeo/gdal/c123401b2b22acfbfbd7fe00eee43d0a30fd11d8/gdal/data/osmconf.ini
+
 // For possible extract formats and styles see https://extract.bbbike.org/extract-screenshots.html
 
 import { execSync } from 'child_process';
@@ -16,6 +20,8 @@ import gdal, { Dataset } from 'gdal-next';
 import * as turf from '@turf/turf';
 
 import osmDir from '../constants/osmDataDir';
+import { osmosisExecutablePath } from '../constants/osmosis';
+
 import osmBoundaryAdministrationLevelCodes from '../constants/osmBoundaryAdministrationLevelCodes';
 
 import isValidExtractAreaName from '../utils/isValidExtractAreaName';
@@ -31,12 +37,7 @@ export type OsmMultipolygonQueryObj = Record<string, string | number>;
 const osmRoadwaysSqlPath = join(__dirname, './osm_roadways.sql');
 const osmRoadwayConfigFilePath = join(__dirname, './roadways_osmconf.ini');
 
-const osmosisExecutable = join(
-  __dirname,
-  '../../lib/osmosis/osmosis-0.48.3/bin/osmosis',
-);
-
-export default class OsmExtractDao {
+export default class OsmDao {
   static getExtractDirectoryPath(extractName: string) {
     return join(osmDir, extractName);
   }
@@ -57,7 +58,7 @@ export default class OsmExtractDao {
       n = n.replace(new RegExp(`${adminLevel}$`, 'i'), '');
     }
 
-    n = OsmExtractDao.getCleanedExtractAreaName(`${n}-${adminLevel}`);
+    n = OsmDao.getCleanedExtractAreaName(`${n}-${adminLevel}`);
 
     return n;
   }
@@ -80,7 +81,7 @@ export default class OsmExtractDao {
     }
 
     this.osmVersionExtractName = osmVersionExtractName;
-    this.osmVersionExtractDir = OsmExtractDao.getExtractDirectoryPath(
+    this.osmVersionExtractDir = OsmDao.getExtractDirectoryPath(
       this.osmVersionExtractName,
     );
 
@@ -214,7 +215,7 @@ export default class OsmExtractDao {
       throw new Error(`Invalid osmVersionExtractName: ${extractName}`);
     }
 
-    const extractDirPath = OsmExtractDao.getExtractDirectoryPath(extractName);
+    const extractDirPath = OsmDao.getExtractDirectoryPath(extractName);
 
     if (existsSync(extractDirPath)) {
       throw new Error(
@@ -231,7 +232,7 @@ export default class OsmExtractDao {
 
     const extractPbfFilePath = join(extractDirPath, `${extractName}.osm.pbf`);
 
-    const command = `${osmosisExecutable} \
+    const command = `${osmosisExecutablePath} \
       --read-pbf-fast file=${this.pbfFilePath} \
       --sort type="TypeThenId" \
       --bounding-polygon \
@@ -280,7 +281,7 @@ export default class OsmExtractDao {
     adminLevel: AdministrationLevel,
     name: AdministrationAreaName,
   ) {
-    const cleanedName = OsmExtractDao.getAdministrativeAreaExtractNamePrefix(
+    const cleanedName = OsmDao.getAdministrativeAreaExtractNamePrefix(
       adminLevel,
       name,
     );
@@ -426,7 +427,7 @@ export default class OsmExtractDao {
     const xmlFileName = `${this.osmVersionExtractName}.osm`;
     const xmlPath = join(this.osmVersionExtractDir, xmlFileName);
 
-    const command = `${osmosisExecutable} \
+    const command = `${osmosisExecutablePath} \
       --read-pbf-fast file=${this.pbfFilePath} \
       --sort type="TypeThenId" \
       --write-xml ${xmlPath}

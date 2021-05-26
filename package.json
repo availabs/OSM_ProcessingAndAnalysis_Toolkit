@@ -24,10 +24,12 @@
     "@turf/turf": "^6.3.0",
     "gdal-next": "^2.8.0",
     "lodash": "^4.17.21",
+    "pretty-bytes": "^5.6.0",
     "yargs": "^17.0.1"
   },
   "devDependencies": {
     "@types/gdal": "^0.9.1",
+    "@types/lodash": "^4.14.170",
     "@types/node": "^15.6.0",
     "@types/yargs": "^17.0.0",
     "@typescript-eslint/eslint-plugin": "^4.24.0",

@@ -29,6 +29,8 @@ The following rules are intended to promote cross-project consistency and facili
 - [useful resources](https://labs.mapbox.com/mapping/becoming-a-power-mapper/useful-osm-resources/)
 - [Geofabrik region extracts](http://download.geofabrik.de/openstreetmap/)
 
+- [TIGER to OSM Attribute Map](https://wiki.openstreetmap.org/wiki/TIGER_to_OSM_Attribute_Map)
+
 ### Open Source Geospatial Foundation _(OSGeo)_ Geospatial Data Abstraction Library _(GDAL)_
 
 - [Main site](https://www.gdal.org)

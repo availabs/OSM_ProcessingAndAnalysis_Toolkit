@@ -1,0 +1,25 @@
+#!/bin/bash
+
+## TODO: Move all of this into Node.
+
+set -e
+
+pushd  "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null
+
+SHST_BLDR_VERSION_JAR="sharedstreets-builder-$SHST_BLDR_VERSION.jar"
+RELEASE_URL="https://github.com/sharedstreets/sharedstreets-builder/releases/download/$SHST_BLDR_VERSION/sharedstreets-builder-$SHST_BLDR_VERSION.jar"
+
+SHST_BLDR_DIR='../../lib/sharedstreets-builder'
+SHST_BLDR_VERSION_JAR_PATH="$SHST_BLDR_DIR/$SHST_BLDR_VERSION_JAR"
+
+if [ -f "$SHST_BLDR_VERSION_JAR_PATH" ]
+then
+  echo "$SHST_BLDR_VERSION_JAR already exists in lib/sharedstreets-builder directory."
+  exit
+fi
+
+mkdir -p "$SHST_BLDR_DIR"
+
+curl -s -L "$RELEASE_URL" > "$SHST_BLDR_VERSION_JAR_PATH"
+
+popd >/dev/null
