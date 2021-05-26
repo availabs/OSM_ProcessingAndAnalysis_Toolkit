@@ -1,17 +1,23 @@
 <!-- markdownlint-disable MD013 -->
 
-# OpenStreetMap Processing and Analysis Toolkit
+# AVAIL GIS Toolkit
 
-This repository is intended to provide cross-project OSM dataset consistency
+This repository is intended to facilitate cross-project GIS dataset consistency
 and simplified data provenance archiving by standardizing and centralizing
-the processing, versioning, and analysis of OSM datasets.
+the processing, versioning, and analysis of GIS datasets.
 
-## Naming Conventions
+## OSM Naming Conventions
 
 The following rules are intended to promote cross-project consistency and facilitate archiving:
 
-- Only OSM PBF, and not XML, files are supported as input.
-- The OSM version PBF file MUST be in ${osmDir}.
+- Currently, all processing MUST start with an OSM PBF, and not XML, files.
+
+  - XML files can be created from the PBF.
+
+- The OSM version PBF file MUST be in data/osm/
+
+  - TODO: Document the data/ directory conventions
+
 - OSM version names and extract names MUST match the following naming convention.
 
   - Extract names are lowercase with dashes, followed by the OSM version.
@@ -52,5 +58,7 @@ May need to use this to fine tune what is included/excluded in an OSM Version Ex
 ## Node GDAL-Next
 
 We are using [node-gdal-next](https://github.com/contra/node-gdal-next)
-(a fork of [node-gdal](https://github.com/naturalatlas/node-gdal)) because we need
-[SQLite and GPKG support](https://github.com/naturalatlas/node-gdal/pull/260#issuecomment-597697047)
+(a fork of [node-gdal](https://github.com/naturalatlas/node-gdal)) because we currently need
+[SQLite and GPKG support](https://github.com/naturalatlas/node-gdal/pull/260#issuecomment-597697047).
+
+With some work, we could use [node-gdal](https://github.com/naturalatlas/node-gdal) instead.
