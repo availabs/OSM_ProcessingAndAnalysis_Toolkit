@@ -6,6 +6,17 @@ This repository is intended to facilitate cross-project GIS dataset consistency
 and simplified data provenance archiving by standardizing and centralizing
 the processing, versioning, and analysis of GIS datasets.
 
+## Running in Docker
+
+For FileGDB support, you may need to run in a Docker container with a special build of GDAL.
+See _./buildOSGeoWitFileGdbSupport_. Better documentation and automation forthcoming.
+
+```sh
+$ docker run -it --rm -v '/home/paul/AVAIL/avail-gis-toolkit:/avail-gis-toolkit/' gdal-with-filegdb:installed-node-and-zip
+root@4e33a240c838:/# cd /avail-gis-toolkit/
+root@4e33a240c838:/avail-gis-toolkit#
+```
+
 ## OSM Naming Conventions
 
 The following rules are intended to promote cross-project consistency and facilitate archiving:
