@@ -3,10 +3,12 @@
 //    https://wiki.openstreetmap.org/wiki/United_States_admin_level#Consolidated_city-counties.2C_Independent_cities
 
 export enum NysRisAdministrationLevel {
-  state = 'state',
-  county = 'county',
-  urban_area = 'urban_area',
-  mpo = 'mpo',
+  State = 'state',
+  County = 'county',
+  UrbanArea = 'urban-area',
+  MPO = 'mpo',
 }
 
 export type NysRisAdministrationAreaName = string;
+
+export type NysRisVersionExtractName = string;

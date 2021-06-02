@@ -1,5 +1,5 @@
 import { execSync, spawnSync } from 'child_process';
-import { existsSync, chmodSync, readdirSync, statSync } from 'fs';
+import { existsSync, chmodSync, readdirSync, mkdirSync, statSync } from 'fs';
 
 import { join } from 'path';
 import gdal from 'gdal-next';
@@ -11,6 +11,7 @@ import { risDataDir } from '../constants/nysRis';
 import getGdalVirtualFileSystemPath from '../utils/getGdalVirtualFileSystemPath';
 import isTarArchive from '../utils/isTarArchive';
 import isZipArchive from '../utils/isZipArchive';
+import cleanName from '../utils/cleanName';
 
 import assimilateNysRisSource from './utils/assimilateNysRisSource';
 import chownr from '../utils/chownr';
@@ -18,42 +19,136 @@ import chownr from '../utils/chownr';
 import {
   NysRisAdministrationLevel,
   NysRisAdministrationAreaName,
+  NysRisVersionExtractName,
 } from './domain/types';
+
+import nysRisAdminLevelFieldNames from './constants/nysRisAdminLevelFieldNames';
+
+type NysRisNonStateAdministrationLevel = Omit<
+  NysRisAdministrationLevel,
+  'State'
+>;
 
 gdal.verbose();
 
-export type NysRisAdministrationAreaQueryObj = Record<string, string | number>;
+export type CreateFileGDBParams = {
+  origSrcGdalVFSPath: string;
+  fileGdbPath: string;
+  uid: number;
+  gid: number;
+  adminAreaFilter: {
+    adminLevel: NysRisNonStateAdministrationLevel;
+    name: NysRisAdministrationAreaName;
+  } | null;
+};
 
 export default class NysRisDao {
   static async assimilateNysRisSource(nysRisSourceFilePath: string) {
     await assimilateNysRisSource(nysRisSourceFilePath);
   }
 
-  static getExtractDirectoryPath(extractName: string) {
+  static getExtractDirectoryPath(extractName: NysRisVersionExtractName) {
     return join(risDataDir, extractName);
   }
 
-  static cleanNysRisAdminLevelName(name: string): NysRisAdministrationAreaName {
-    return name.replace(/[^a-z0-9_-]{1,}/g, '-').replace(/-{1,}/, '-');
+  static getFileGdbPath(nysRisVersionName: NysRisVersionExtractName) {
+    const dir = NysRisDao.getExtractDirectoryPath(nysRisVersionName);
+    const fileName = `${nysRisVersionName}.gdb`;
+
+    return join(dir, fileName);
   }
 
   static getAdministrativeAreaExtractNamePrefix(
+    adminLevel: NysRisNonStateAdministrationLevel,
     name: string,
-    adminLevel: NysRisAdministrationLevel,
   ) {
-    let n = name.toLowerCase();
-
-    if (n.endsWith(adminLevel)) {
-      n = n.replace(new RegExp(`${adminLevel}$`, 'i'), '');
-    }
-
-    n = NysRisDao.cleanNysRisAdminLevelName(`${n}-${adminLevel}`);
-
-    return n;
+    return cleanName(`${name}-${adminLevel}`);
   }
 
   static isValidNysRisExtractName(nysRisVersion: string) {
     return /^[a-z0-9_-]*nys-ris-\d{8}$/.test(nysRisVersion);
+  }
+
+  static getExtractNameForAdministrativeRegion(
+    adminLevel: NysRisNonStateAdministrationLevel,
+    name: NysRisAdministrationAreaName,
+    sourceName: NysRisVersionExtractName,
+  ) {
+    if (!NysRisDao.isValidNysRisExtractName(sourceName)) {
+      throw new Error('Invalid sourceName');
+    }
+
+    const prefix = NysRisDao.getAdministrativeAreaExtractNamePrefix(
+      adminLevel,
+      name,
+    );
+
+    return `${prefix}_${sourceName}`;
+  }
+
+  protected static _createFileGDB({
+    origSrcGdalVFSPath,
+    fileGdbPath,
+    uid,
+    gid,
+    adminAreaFilter = null,
+  }: CreateFileGDBParams) {
+    if (adminAreaFilter?.adminLevel === NysRisAdministrationLevel.State) {
+      throw new Error('Cannot create a NYS RIS State level extract.');
+    }
+
+    if (existsSync(fileGdbPath)) {
+      console.warn('FileGDB already exists.');
+      return;
+    }
+
+    if (!ogr2ogrEnabledFormats?.FileGDB) {
+      throw new Error(
+        "FileGDB driver not available in the host system's GDAL verion. See buildOSGeoWitFileGdbSupport.",
+      );
+    }
+
+    let whereClause = '';
+
+    if (adminAreaFilter) {
+      const name =
+        adminAreaFilter.adminLevel === NysRisAdministrationLevel.UrbanArea
+          ? adminAreaFilter.name
+          : adminAreaFilter.name.toUpperCase();
+
+      // @ts-ignore
+      const fieldName = nysRisAdminLevelFieldNames[adminAreaFilter.adminLevel];
+
+      whereClause = `-where "${fieldName} = '${name}'"`;
+    }
+
+    const command = `ogr2ogr \
+      -skipfailures \
+      -nln roadway_inventory_system \
+      -F FileGDB \
+      ${whereClause} \
+      ${fileGdbPath} \
+      ${origSrcGdalVFSPath}`;
+
+    console.log(command);
+
+    // NOTE: spawnSync preferred, but it created empty GPKGs. Don't know why.
+    execSync(command);
+
+    const inDocker = statSync(fileGdbPath).uid !== uid;
+
+    if (inDocker) {
+      chownr(fileGdbPath, uid, gid);
+    }
+
+    // Make the FileGDB readonly
+    chmodr.sync(fileGdbPath, '444');
+
+    spawnSync('zip', ['-r', '-9', `${fileGdbPath}.zip`, fileGdbPath]);
+
+    if (inDocker) {
+      chownr(`${fileGdbPath}.zip`, uid, gid);
+    }
   }
 
   readonly nysRisVersionExtractDir: string;
@@ -136,9 +231,7 @@ export default class NysRisDao {
   }
 
   get fileGdbPath() {
-    const fileName = `${this.nysRisVersionName}.gdb`;
-
-    return join(this.nysRisVersionExtractDir, fileName);
+    return NysRisDao.getFileGdbPath(this.nysRisVersionName);
   }
 
   get fileGdbExists() {
@@ -202,36 +295,53 @@ export default class NysRisDao {
       );
     }
 
-    if (!ogr2ogrEnabledFormats?.FileGDB) {
+    NysRisDao._createFileGDB({
+      // @ts-ignore
+      origSrcGdalVFSPath: this.originalSourceGdalVirtualFileSystemPath,
+      fileGdbPath: this.fileGdbPath,
+      uid: this.ownerUid,
+      gid: this.ownerGid,
+    });
+  }
+
+  createAdministrativeRegionExtract(
+    adminLevel: NysRisNonStateAdministrationLevel,
+    name: NysRisAdministrationAreaName,
+  ) {
+    const extractName = NysRisDao.getExtractNameForAdministrativeRegion(
+      adminLevel,
+      name,
+      this.nysRisVersionName,
+    );
+
+    const extractDirPath = NysRisDao.getExtractDirectoryPath(extractName);
+
+    if (existsSync(extractDirPath)) {
       throw new Error(
-        "FileGDB driver not available in the host system's GDAL verion. See buildOSGeoWitFileGdbSupport.",
+        `NYS RIS Version Extract directory already exists at ${extractDirPath}`,
       );
     }
 
-    const command = `ogr2ogr \
-      -skipfailures \
-      -nln roadway_inventory_system \
-      -F FileGDB \
-      ${this.fileGdbPath} \
-      ${this.originalSourceGdalVirtualFileSystemPath}`;
+    mkdirSync(extractDirPath, { recursive: true });
 
-    // NOTE: spawnSync preferred, but it created empty GPKGs. Don't know why.
-    execSync(command);
+    const extractFileGdbPath = NysRisDao.getFileGdbPath(extractName);
+    console.log(extractName);
+    console.log(extractFileGdbPath);
 
-    const inDocker = statSync(this.fileGdbPath).uid !== this.ownerUid;
+    const input =
+      this.fileGdbGdalVirtualFileSystemPath ||
+      this.originalSourceGdalVirtualFileSystemPath;
 
-    if (inDocker) {
-      chownr(this.fileGdbPath, this.ownerUid, this.ownerGid);
-    }
+    NysRisDao._createFileGDB({
+      // @ts-ignore
+      origSrcGdalVFSPath: input,
+      fileGdbPath: extractFileGdbPath,
+      uid: this.ownerUid,
+      gid: this.ownerGid,
+      adminAreaFilter: { adminLevel, name },
+    });
 
-    // Make the FileGDB readonly
-    chmodr.sync(this.fileGdbPath, '444');
-
-    spawnSync('zip', ['-r', '-9', `${this.fileGdbPath}.zip`, this.fileGdbPath]);
-
-    if (inDocker) {
-      chownr(`${this.fileGdbPath}.zip`, this.ownerUid, this.ownerGid);
-    }
+    chownr(extractDirPath, this.ownerUid, this.ownerGid);
   }
 
   get gpkgPath() {
