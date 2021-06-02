@@ -11,12 +11,11 @@
 */
 
 import { spawnSync } from 'child_process';
-import { existsSync, mkdirSync, statSync, readdirSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { join, basename } from 'path';
 import _ from 'lodash';
 
 import tar from 'tar';
-import unzipper from 'unzipper';
 
 import { ogr2ogrEnabledFormats } from '../../../constants/ogr2ogr';
 
@@ -25,6 +24,8 @@ import { risDataDir } from '../../../constants/nysRis';
 import isDirectory from '../../../utils/isDirectory';
 import isTarArchive from '../../../utils/isTarArchive';
 import isZipArchive from '../../../utils/isZipArchive';
+
+import getLastModifiedDateTime from '../../../utils/getLastModifiedDateTime';
 
 function verifySourceExists(nysRisPath: string) {
   if (!existsSync(nysRisPath)) {
@@ -97,50 +98,10 @@ async function getSourceFormat(nysRisPath: string) {
       .join('|'),
   );
 
+  // @ts-ignore
   const [format] = stdout.toString().match(gdalFormatRE);
 
   return format;
-}
-
-async function getLastModifiedDateTime(fpath: string) {
-  let latestMtime = null;
-
-  const handleEntryMTime = (mtime: Date) => {
-    if (latestMtime === null || mtime > latestMtime) {
-      latestMtime = mtime;
-    }
-  };
-
-  if (isDirectory(fpath)) {
-    const files = readdirSync(fpath);
-
-    files.forEach((f) => {
-      handleEntryMTime(statSync(join(fpath, f)).mtime);
-    });
-  } else if (isTarArchive(fpath)) {
-    tar.list({
-      file: fpath,
-      sync: true,
-      onentry: (readEntry) => {
-        // @ts-ignore
-        handleEntryMTime(readEntry.mtime);
-      },
-    });
-  } else if (isZipArchive(fpath)) {
-    const directory = await unzipper.Open.file(fpath);
-    directory.files.forEach((f) => {
-      // @ts-ignore
-      handleEntryMTime(f.lastModifiedDateTime);
-    });
-  }
-
-  if (!latestMtime) {
-    return null;
-  }
-
-  const timestamp = latestMtime.toISOString().replace(/[^\d]/g, '').slice(0, 8);
-
-  return timestamp;
 }
 
 const getNysRisVersionName = async (nysRisPath: string) => {

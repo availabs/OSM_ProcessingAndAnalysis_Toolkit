@@ -43,9 +43,7 @@ export type CreateFileGDBParams = {
 };
 
 export default class NysRisDao {
-  static async assimilateNysRisSource(nysRisSourceFilePath: string) {
-    await assimilateNysRisSource(nysRisSourceFilePath);
-  }
+  static assimilateNysRisSource = assimilateNysRisSource;
 
   static getExtractDirectoryPath(extractName: NysRisVersionExtractName) {
     return join(risDataDir, extractName);
@@ -111,15 +109,15 @@ export default class NysRisDao {
     let whereClause = '';
 
     if (adminAreaFilter) {
-      const name =
-        adminAreaFilter.adminLevel === NysRisAdministrationLevel.UrbanArea
-          ? adminAreaFilter.name
-          : adminAreaFilter.name.toUpperCase();
+      // https://gdal.org/user/ogr_sql_dialect.html
+      //   Most of the operators are self explanatory, but it is worth noting
+      //   that != is the same as <>, the string equality is case insensitive,
+      //   but the <, >, <= and >= operators are case sensitive.
 
       // @ts-ignore
       const fieldName = nysRisAdminLevelFieldNames[adminAreaFilter.adminLevel];
 
-      whereClause = `-where "${fieldName} = '${name}'"`;
+      whereClause = `-where "${fieldName} = '${adminAreaFilter.name}'"`;
     }
 
     const command = `ogr2ogr \
