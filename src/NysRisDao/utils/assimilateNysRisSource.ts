@@ -10,22 +10,18 @@
             i.  put nysRisSourceFile in an original-source directory
 */
 
-import { spawnSync } from 'child_process';
+import { execSync, spawnSync } from 'child_process';
 import { existsSync, mkdirSync } from 'fs';
 import { join, basename } from 'path';
 import _ from 'lodash';
 
-import tar from 'tar';
+import { risDataDir } from '../../constants/nysRis';
 
-import { ogr2ogrEnabledFormats } from '../../../constants/ogr2ogr';
+import isDirectory from '../../utils/isDirectory';
+import isTarArchive from '../../utils/isTarArchive';
+import isZipArchive from '../../utils/isZipArchive';
 
-import { risDataDir } from '../../../constants/nysRis';
-
-import isDirectory from '../../../utils/isDirectory';
-import isTarArchive from '../../../utils/isTarArchive';
-import isZipArchive from '../../../utils/isZipArchive';
-
-import getLastModifiedDateTime from '../../../utils/getLastModifiedDateTime';
+import getLastModifiedDateTime from '../../utils/getLastModifiedDateTime';
 
 function verifySourceExists(nysRisPath: string) {
   if (!existsSync(nysRisPath)) {
@@ -45,63 +41,6 @@ function validateNysRisSourceFormat(nysRisPath: string) {
       'ERROR: The NYS RIS source must be a directory, tar archive, or zip archive.',
     );
   }
-}
-
-async function getGdalVirtualFileSystemPath(nysRisPath: string) {
-  if (isTarArchive(nysRisPath)) {
-    const dirs = new Set();
-    tar.list({
-      file: nysRisPath,
-      sync: true,
-      onentry: (readEntry) => {
-        const { type, path } = readEntry;
-        // @ts-ignore
-        if (type === 'Directory') {
-          dirs.add(path);
-        }
-      },
-    });
-
-    if (dirs.size === 0) {
-      return `/vsitar/${nysRisPath}`;
-    }
-
-    if (dirs.size === 1) {
-      const [dir] = [...dirs.values()];
-
-      return `/vsitar/${nysRisPath}/${dir}`;
-    }
-
-    throw new Error('More than one subdir in tar archive');
-  }
-
-  if (isZipArchive(nysRisPath)) {
-    return `/vsizip/${nysRisPath}`;
-  }
-
-  return nysRisPath;
-}
-
-async function getSourceFormat(nysRisPath: string) {
-  const p = await getGdalVirtualFileSystemPath(nysRisPath);
-
-  const { stdout, stderr, status } = spawnSync('ogrinfo', ['-al', '-so', p]);
-
-  if (status !== 0) {
-    console.error(stderr.toString());
-    throw new Error('GDAL unable to open the NYS RIS source');
-  }
-
-  const gdalFormatRE = new RegExp(
-    Object.keys(ogr2ogrEnabledFormats)
-      .map((f) => `(${f})`)
-      .join('|'),
-  );
-
-  // @ts-ignore
-  const [format] = stdout.toString().match(gdalFormatRE);
-
-  return format;
 }
 
 const getNysRisVersionName = async (nysRisPath: string) => {
@@ -134,10 +73,10 @@ function copyOriginalSourceToNysRisVersionDataDir(
 ) {
   const bname = basename(nysRisPath);
 
-  const origSrcDir = join(dir, 'original_source');
-  mkdirSync(origSrcDir, { recursive: true });
+  const assimilatedDir = join(dir, 'original_source');
+  mkdirSync(assimilatedDir, { recursive: true });
 
-  const dest = join(origSrcDir, bname);
+  const dest = join(assimilatedDir, bname);
 
   const { stderr, status } = spawnSync('cp', [
     '-r',
@@ -151,18 +90,28 @@ function copyOriginalSourceToNysRisVersionDataDir(
     throw new Error('Unable to copy the NYS RIS source');
   }
 
+  // The GDAL FileGDB driver does not support virtual file systems.
+  //   https://gdal.org/user/virtual_file_systems.html#drivers-supporting-virtual-file-systems
+  //   We need the uncompressed directory.
+  //   TODO: Should test if ogr2ogr can open before uncompressing.
   if (isDirectory(nysRisPath)) {
-    spawnSync('zip', ['-r', '-9', `${bname}.zip`, bname], { cwd: origSrcDir });
-    spawnSync('rm', ['-rf', bname], { cwd: origSrcDir });
+    spawnSync('zip', ['-r', '-9', `${bname}.zip`, bname], {
+      cwd: assimilatedDir,
+    });
+  } else if (isTarArchive(nysRisPath)) {
+    spawnSync('tar', ['-zxf', bname], {
+      cwd: assimilatedDir,
+    });
+  } else if (isZipArchive(nysRisPath)) {
+    spawnSync('unzip', [bname], {
+      cwd: assimilatedDir,
+    });
   }
 }
 
 export default async function assimilateNysRisSource(nysRisPath: string) {
   verifySourceExists(nysRisPath);
   validateNysRisSourceFormat(nysRisPath);
-
-  const sourceFormat = await getSourceFormat(nysRisPath);
-  console.log(sourceFormat);
 
   const nysRisVersionName = await getNysRisVersionName(nysRisPath);
 

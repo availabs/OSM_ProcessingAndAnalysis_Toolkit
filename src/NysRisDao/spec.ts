@@ -1,12 +1,23 @@
-import RisDao from '.';
+import { join } from 'path';
+
+import NysRisDao from '.';
 import { NysRisAdministrationLevel } from './domain/types';
 
-const v = 'nys-ris-20190524';
-// const v = 'albany-county_nys-ris-20190524';
+// const p = join(__dirname, '../../etc_data/nys_ris/RoadwayInventorySystem.zip');
 
-const dao = new RisDao(v);
+// NysRisDao.assimilateNysRisSource(p);
 
-// dao.createFileGDB();
-// dao.createGPKG();
+// const v = 'nys-ris-20200921';
 
-dao.createAdministrativeRegionExtract(NysRisAdministrationLevel.MPO, 'CDTC');
+// const dao = new NysRisDao(v);
+
+// dao.createAdministrativeRegionExtract(
+// NysRisAdministrationLevel.County,
+// 'RENSSELAER',
+// );
+
+const v = 'rensselaer-county_nys-ris-20200921';
+
+const dao = new NysRisDao(v);
+
+dao.createGPKG();

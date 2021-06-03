@@ -3,11 +3,11 @@ import tar from 'tar';
 import isTarArchive from './isTarArchive';
 import isZipArchive from './isZipArchive';
 
-export default function getGdalVirtualFileSystemPath(nysRisPath: string) {
-  if (isTarArchive(nysRisPath)) {
+export default function getGdalVirtualFileSystemPath(gdalInputPath: string) {
+  if (isTarArchive(gdalInputPath)) {
     const dirs = new Set();
     tar.list({
-      file: nysRisPath,
+      file: gdalInputPath,
       sync: true,
       onentry: (readEntry) => {
         const { type, path } = readEntry;
@@ -19,21 +19,24 @@ export default function getGdalVirtualFileSystemPath(nysRisPath: string) {
     });
 
     if (dirs.size === 0) {
-      return `/vsitar/${nysRisPath}`;
+      return `/vsitar/${gdalInputPath}`;
     }
 
     if (dirs.size === 1) {
       const [dir] = [...dirs.values()];
 
-      return `/vsitar/${nysRisPath}/${dir}`;
+      return `/vsitar/${gdalInputPath}/${dir}`;
     }
 
     throw new Error('More than one subdir in tar archive');
   }
 
-  if (isZipArchive(nysRisPath)) {
-    return `/vsizip/${nysRisPath}`;
+  if (isZipArchive(gdalInputPath)) {
+    // I could not find a npm library to get the ZIP archive contents synchronously.
+    // This will do it if the need arises:
+    //   zipinfo cdtc-mpo_nys-ris-20190524.gdb.zip | grep -e '^d.*\/$' | awk '{ print $(NF) }'
+    return `/vsizip/${gdalInputPath}`;
   }
 
-  return nysRisPath;
+  return gdalInputPath;
 }

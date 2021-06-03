@@ -1,20 +1,17 @@
-import { execSync, spawnSync } from 'child_process';
+import { execSync } from 'child_process';
 import { existsSync, chmodSync, readdirSync, mkdirSync, statSync } from 'fs';
 
 import { join } from 'path';
-import gdal from 'gdal-next';
-import chmodr from 'chmodr';
 
-import { ogr2ogrEnabledFormats } from '../constants/ogr2ogr';
 import { risDataDir } from '../constants/nysRis';
 
 import getGdalVirtualFileSystemPath from '../utils/getGdalVirtualFileSystemPath';
-import isTarArchive from '../utils/isTarArchive';
-import isZipArchive from '../utils/isZipArchive';
+import isDirectory from '../utils/isDirectory';
 import cleanName from '../utils/cleanName';
+import chownr from '../utils/chownr';
 
 import assimilateNysRisSource from './utils/assimilateNysRisSource';
-import chownr from '../utils/chownr';
+import createFileGdb from './utils/createFileGdb';
 
 import {
   NysRisAdministrationLevel,
@@ -22,28 +19,14 @@ import {
   NysRisVersionExtractName,
 } from './domain/types';
 
-import nysRisAdminLevelFieldNames from './constants/nysRisAdminLevelFieldNames';
-
 type NysRisNonStateAdministrationLevel = Omit<
   NysRisAdministrationLevel,
   'State'
 >;
 
-gdal.verbose();
-
-export type CreateFileGDBParams = {
-  origSrcGdalVFSPath: string;
-  fileGdbPath: string;
-  uid: number;
-  gid: number;
-  adminAreaFilter: {
-    adminLevel: NysRisNonStateAdministrationLevel;
-    name: NysRisAdministrationAreaName;
-  } | null;
-};
-
 export default class NysRisDao {
   static assimilateNysRisSource = assimilateNysRisSource;
+  protected static createFileGdb = createFileGdb;
 
   static getExtractDirectoryPath(extractName: NysRisVersionExtractName) {
     return join(risDataDir, extractName);
@@ -84,74 +67,7 @@ export default class NysRisDao {
     return `${prefix}_${sourceName}`;
   }
 
-  protected static _createFileGDB({
-    origSrcGdalVFSPath,
-    fileGdbPath,
-    uid,
-    gid,
-    adminAreaFilter = null,
-  }: CreateFileGDBParams) {
-    if (adminAreaFilter?.adminLevel === NysRisAdministrationLevel.State) {
-      throw new Error('Cannot create a NYS RIS State level extract.');
-    }
-
-    if (existsSync(fileGdbPath)) {
-      console.warn('FileGDB already exists.');
-      return;
-    }
-
-    if (!ogr2ogrEnabledFormats?.FileGDB) {
-      throw new Error(
-        "FileGDB driver not available in the host system's GDAL verion. See buildOSGeoWitFileGdbSupport.",
-      );
-    }
-
-    let whereClause = '';
-
-    if (adminAreaFilter) {
-      // https://gdal.org/user/ogr_sql_dialect.html
-      //   Most of the operators are self explanatory, but it is worth noting
-      //   that != is the same as <>, the string equality is case insensitive,
-      //   but the <, >, <= and >= operators are case sensitive.
-
-      // @ts-ignore
-      const fieldName = nysRisAdminLevelFieldNames[adminAreaFilter.adminLevel];
-
-      whereClause = `-where "${fieldName} = '${adminAreaFilter.name}'"`;
-    }
-
-    const command = `ogr2ogr \
-      -skipfailures \
-      -nln roadway_inventory_system \
-      -F FileGDB \
-      ${whereClause} \
-      ${fileGdbPath} \
-      ${origSrcGdalVFSPath}`;
-
-    console.log(command);
-
-    // NOTE: spawnSync preferred, but it created empty GPKGs. Don't know why.
-    execSync(command);
-
-    const inDocker = statSync(fileGdbPath).uid !== uid;
-
-    if (inDocker) {
-      chownr(fileGdbPath, uid, gid);
-    }
-
-    // Make the FileGDB readonly
-    chmodr.sync(fileGdbPath, '444');
-
-    spawnSync('zip', ['-r', '-9', `${fileGdbPath}.zip`, fileGdbPath]);
-
-    if (inDocker) {
-      chownr(`${fileGdbPath}.zip`, uid, gid);
-    }
-  }
-
   readonly nysRisVersionExtractDir: string;
-
-  protected _gpkgDataset?: gdal.Dataset;
 
   protected _originalSourceFilePath?: string | null;
 
@@ -193,8 +109,9 @@ export default class NysRisDao {
       ? readdirSync(this.originalSourceDirectoryPath)
       : [];
 
-    const archives = origSrcDirFiles.filter(
-      (f) => isTarArchive(f) || isZipArchive(f),
+    const archives = origSrcDirFiles.filter((f) =>
+      // @ts-ignore
+      isDirectory(join(this.originalSourceDirectoryPath, f)),
     );
 
     if (archives.length < 1) {
@@ -211,7 +128,7 @@ export default class NysRisDao {
 
     this._originalSourceFilePath = join(
       this.originalSourceDirectoryPath,
-      origSrcDirFiles[0],
+      archives[0],
     );
 
     return this._originalSourceFilePath;
@@ -246,7 +163,7 @@ export default class NysRisDao {
 
   get fileGdbGdalVirtualFileSystemPath() {
     if (this.fileGdbExists) {
-      return getGdalVirtualFileSystemPath(this.fileGdbPath);
+      return this.fileGdbPath;
     }
 
     if (this.fileGdbZipExists) {
@@ -262,12 +179,12 @@ export default class NysRisDao {
       return this.originalSourceFilePath;
     }
 
-    if (this.fileGdbZipExists) {
-      return this.fileGdbZipPath;
-    }
-
     if (this.fileGdbExists) {
       return this.fileGdbPath;
+    }
+
+    if (this.fileGdbZipExists) {
+      return this.fileGdbZipPath;
     }
 
     throw new Error('Cannot find an original source NYS RIS or a FileGDB');
@@ -293,9 +210,9 @@ export default class NysRisDao {
       );
     }
 
-    NysRisDao._createFileGDB({
+    NysRisDao.createFileGdb({
       // @ts-ignore
-      origSrcGdalVFSPath: this.originalSourceGdalVirtualFileSystemPath,
+      gdalInputPath: this.originalSourceGdalVirtualFileSystemPath,
       fileGdbPath: this.fileGdbPath,
       uid: this.ownerUid,
       gid: this.ownerGid,
@@ -330,9 +247,9 @@ export default class NysRisDao {
       this.fileGdbGdalVirtualFileSystemPath ||
       this.originalSourceGdalVirtualFileSystemPath;
 
-    NysRisDao._createFileGDB({
+    NysRisDao.createFileGdb({
       // @ts-ignore
-      origSrcGdalVFSPath: input,
+      gdalInputPath: input,
       fileGdbPath: extractFileGdbPath,
       uid: this.ownerUid,
       gid: this.ownerGid,
@@ -352,9 +269,6 @@ export default class NysRisDao {
     return existsSync(this.gpkgPath);
   }
 
-  // Because executeSQL fails with "Too many features have accumulated in points layer" error,
-  //   we create a GPKG so we can get administrative boundaries with executeSQL.
-  // See https://gdal.org/drivers/vector/osm.html#interleaved-reading
   createGPKG() {
     if (this.gpkgExists) {
       console.warn('GPKG already exists.');
