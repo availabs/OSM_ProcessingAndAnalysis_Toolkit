@@ -1,0 +1,17 @@
+#!/bin/bash
+
+set -e
+
+. ../../config/postgres.env.prod
+
+for year in 2016 2017 2018 2019 2020; do
+  echo "$year"
+
+  ogr2ogr \
+    -f "FileGDB" \
+    -skipfailures \
+    "nys-roadway-inventory-system-v${year}0000.gdb" \
+    PG:"host=$PGHOST user=$PGUSER dbname=$PGDATABASE password=$PGPASSWORD" \
+    "ris.road_inventory_system_$year" \
+    -nln road_inventory_system
+done
