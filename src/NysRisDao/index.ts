@@ -47,7 +47,9 @@ export default class NysRisDao {
   }
 
   static isValidNysRisExtractName(nysRisVersion: string) {
-    return /^[a-z0-9_-]*nys-ris-\d{8}$/.test(nysRisVersion);
+    return /^[a-z0-9_-]*nys-roadway-inventory-system-v\d{8}$/.test(
+      nysRisVersion,
+    );
   }
 
   static getExtractNameForAdministrativeRegion(
