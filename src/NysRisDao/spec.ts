@@ -3,21 +3,28 @@ import { join } from 'path';
 import NysRisDao from '.';
 import { NysRisAdministrationLevel } from './domain/types';
 
-// const p = join(__dirname, '../../etc_data/nys_ris/RoadwayInventorySystem.zip');
+(async () => {
+  // const years = [2016, 2017, 2018, 2019];
+  const years = [2019];
 
-// NysRisDao.assimilateNysRisSource(p);
+  for (const year of years) {
+    const tstamp = `${year}0000`;
 
-// const v = 'nys-ris-20200921';
+    const p = join(
+      __dirname,
+      `../../unassimilated_data/NysRoadwayInventorySystem/nys-roadway-inventory-system-v${tstamp}.gdb.zip`,
+    );
 
-// const dao = new NysRisDao(v);
+    await NysRisDao.assimilateNysRisSource(p, tstamp);
 
-// dao.createAdministrativeRegionExtract(
-// NysRisAdministrationLevel.County,
-// 'RENSSELAER',
-// );
+    const v = `nys-roadway-inventory-system-v${tstamp}`;
 
-const v = 'rensselaer-county_nys-ris-20200921';
+    const dao = new NysRisDao(v);
 
-const dao = new NysRisDao(v);
-
-dao.createGPKG();
+    dao.createAdministrativeRegionExtract(
+      NysRisAdministrationLevel.County,
+      'YATES',
+    );
+    dao.createFileGDB();
+  }
+})();

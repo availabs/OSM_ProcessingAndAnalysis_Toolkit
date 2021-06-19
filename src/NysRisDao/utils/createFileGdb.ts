@@ -69,6 +69,7 @@ export default function _createFileGDB({
 
   const command = `ogr2ogr \
       -skipfailures \
+      -t_srs 'EPSG:4326' \
       -nln roadway_inventory_system \
       -F FileGDB \
       ${whereClause} \

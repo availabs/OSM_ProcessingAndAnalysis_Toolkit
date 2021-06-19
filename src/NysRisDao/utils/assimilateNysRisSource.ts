@@ -43,8 +43,22 @@ function validateNysRisSourceFormat(nysRisPath: string) {
   }
 }
 
-const getNysRisVersionName = async (nysRisPath: string) => {
-  const timestamp = await getLastModifiedDateTime(nysRisPath);
+function validateProvidedNysRisVersionTimestamp(
+  nysRisVersionTimestamp: string,
+) {
+  if (!/\d{8}/.test(nysRisVersionTimestamp)) {
+    throw new Error(
+      `The provided NYS RIS version timestamp ${nysRisVersionTimestamp} does not follow the YYYYMMDD format`,
+    );
+  }
+}
+
+const getNysRisVersionName = async (
+  nysRisPath: string,
+  nysRisVersionTimestamp: string | null = null,
+) => {
+  const timestamp =
+    nysRisVersionTimestamp || (await getLastModifiedDateTime(nysRisPath));
 
   if (timestamp === null) {
     throw new Error(
@@ -52,7 +66,7 @@ const getNysRisVersionName = async (nysRisPath: string) => {
     );
   }
 
-  return `nys-ris-${timestamp}`;
+  return `nys-roadway-inventory-system-v${timestamp}`;
 };
 
 function makeNysRisVersionDataDirectory(nysRisVersionName: string) {
@@ -109,11 +123,21 @@ function copyOriginalSourceToNysRisVersionDataDir(
   }
 }
 
-export default async function assimilateNysRisSource(nysRisPath: string) {
+export default async function assimilateNysRisSource(
+  nysRisPath: string,
+  nysRisVersionTimestamp: string | null = null,
+) {
   verifySourceExists(nysRisPath);
   validateNysRisSourceFormat(nysRisPath);
 
-  const nysRisVersionName = await getNysRisVersionName(nysRisPath);
+  if (nysRisVersionTimestamp) {
+    validateProvidedNysRisVersionTimestamp(nysRisVersionTimestamp);
+  }
+
+  const nysRisVersionName = await getNysRisVersionName(
+    nysRisPath,
+    nysRisVersionTimestamp,
+  );
 
   const dir = makeNysRisVersionDataDirectory(nysRisVersionName);
 
