@@ -1,0 +1,19 @@
+#!/bin/bash
+
+for year in 2017 2018 2019 2020; do
+  grep '^{ "type": "Feature"' "./db_source/ny-npmrds-shapefile-${year}"* |
+    sed 's/,$//' |
+    tr '[:upper:]' '[:lower:]' |
+    sort \
+  > "cleaned/db.$year.geojson"
+done
+
+for year in 2017 2018 2019 2020; do
+  grep '^{ "type": "Feature"' "./file_source/ny-npmrds-shapefile-${year}"* |
+    sed 's/,$//' |
+    tr '[:upper:]' '[:lower:]' |
+    sort \
+  > "cleaned/file.$year.geojson"
+done
+
+md5sum ./cleaned/*

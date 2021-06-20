@@ -1,0 +1,26 @@
+#!/bin/bash
+
+set -e
+
+. ../../config/postgres.env.prod
+
+for year in 2016 2017 2018 2019 2020; do
+  echo "$year"
+
+  shapefile_name="ny-npmrds-shapefile-${year}-v${year}0000"
+
+  ogr2ogr \
+    -f 'ESRI Shapefile' \
+    -skipfailures \
+    "$shapefile_name" \
+    PG:"host=$PGHOST user=$PGUSER dbname=$PGDATABASE password=$PGPASSWORD" \
+    "ny.npmrds_shapefile_${year}" \
+    -nln npmrds_shapefile
+
+  export GZIP=-9
+
+  tar \
+    -zcf \
+    "$shapefile_name.tgz" \
+    "$shapefile_name"
+done
