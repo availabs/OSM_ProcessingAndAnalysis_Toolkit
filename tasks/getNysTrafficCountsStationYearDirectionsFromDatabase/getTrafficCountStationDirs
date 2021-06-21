@@ -1,0 +1,22 @@
+#!/bin/bash
+
+set -e
+set -a
+
+. ../../config/postgres.env.prod
+
+mkdir -p data
+
+psql \
+    -c "
+      COPY (
+        SELECT
+            rc_station,
+            year,
+            federal_direction
+          FROM conflation.nys_traffic_counts_station_year_directions
+          ORDER BY 1,2,3
+      ) TO STDOUT WITH CSV HEADER
+    " |
+  gzip -9 \
+  > "data/nys-traffic-counts-station-year-directions-$(date '+%Y%m%d').csv.gz"
