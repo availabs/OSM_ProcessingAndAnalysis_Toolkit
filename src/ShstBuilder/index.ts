@@ -30,6 +30,8 @@ export type CreateSharedStreetsTilesetParams = {
   maximumMemoryAllocation: string;
 };
 
+const ROAD_CLASS_LEVEL = 8;
+
 const defaultCreateTilesetMaxMem = prettyBytes(totalmem() / 4)
   .replace(/\.\d{1,}/, '')
   .replace(/ /g, '')
@@ -123,23 +125,22 @@ export default class ShstBuilder {
     this.downloadSharedStreetsBuilder();
 
     console.log(`Creating tileset in ${this.extractShstDir}`);
-    spawnSync(
-      'java',
-      [
-        `-Xmx${maximumMemoryAllocation}`,
-        '-jar',
-        shstBuilderJarPath,
-        '--roadClass',
-        '8',
-        '--input',
-        this.osmDao.pbfFilePath,
-        '--output',
-        this.extractTilesetDirPath,
-      ],
-      {
-        stdio: ['inherit', logFileFd, logFileFd],
-      },
-    );
+
+    const args = [
+      `-Xmx${maximumMemoryAllocation}`,
+      '-jar',
+      shstBuilderJarPath,
+      '--roadClass',
+      `${ROAD_CLASS_LEVEL}`,
+      '--input',
+      this.osmDao.pbfFilePath,
+      '--output',
+      this.extractTilesetDirPath,
+    ];
+
+    spawnSync('java', args, {
+      stdio: ['inherit', logFileFd, logFileFd],
+    });
 
     const metadataPath = join(
       this.extractShstDir,
