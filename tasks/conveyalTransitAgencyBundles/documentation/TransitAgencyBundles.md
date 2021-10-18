@@ -1,7 +1,8 @@
 # Transit Agency Bundles for Conveyal Analysis
 
 GIS file bundles were created for CDTA and Centro.
-These bundle files can be directly loaded into the Conveyal Analysis Tool,
+These bundle files can be directly loaded into the
+[Conveyal Analysis Tool](https://docs.conveyal.com/),
 except for the ZIPed LODES CSVs which will need to be decompressed before loading.
 
 ## Bundle Files
