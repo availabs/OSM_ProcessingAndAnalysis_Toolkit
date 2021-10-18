@@ -9,15 +9,17 @@ except for the ZIPed LODES CSVs which will need to be decompressed before loadin
 
 Transit agency names prefix all file names. The below listed files are for CDTA.
 
-Transit Agency regions represent a [convex hull](https://en.wikipedia.org/wiki/Convex_hull)
-created around all points within 15 miles of a bus route.
+Transit agency regions represent a [convex hull](https://en.wikipedia.org/wiki/Convex_hull)
+around all points within 15 miles of a bus route. For example, the image below shows
+CDTA's region.
+
+![CDTA_15mi_Region](./images/CDTA_15mi_Region.png)
 
 ### File Descriptions
 
 - cdta.gtfs.zip: The CDTA GTFS Feed data.
 
-- cdta-15mi-buffer_new-york-210101.osm.pbf: All OSM roads within 15 miles of any
-  all the transit agency route.
+- cdta-15mi-buffer_new-york-210101.osm.pbf: All OSM roads within the transit agency region.
 
 - cdta_lodes_residence_area_characteristics.freeform.csv.zip:
   [Freeform](https://docs.conveyal.com/prepare-inputs/upload-spatial-data#freeform-non-grid-points)
