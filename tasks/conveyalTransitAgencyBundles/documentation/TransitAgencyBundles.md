@@ -7,21 +7,22 @@ except for the ZIPed LODES CSVs which will need to be decompressed before loadin
 
 ## Bundle Files
 
-Transit agency names prefix all file names. The below listed files are for CDTA.
-
 Transit agency regions represent a [convex hull](https://en.wikipedia.org/wiki/Convex_hull)
 around all points within 15 miles of a bus route. For example, the image below shows
 CDTA's region.
 
 ![CDTA_15mi_Region](./images/CDTA_15mi_Region.png)
 
+Transit agency names prefix the data file names. The below listed files are for CDTA.
+
 ### File Descriptions
 
-- cdta.gtfs.zip: The CDTA GTFS Feed data.
+- **cdta.gtfs.zip**: The CDTA GTFS Feed data.
 
-- cdta-15mi-buffer_new-york-210101.osm.pbf: All OSM roads within the transit agency region.
+- **cdta-15mi-buffer_new-york-210101.osm.pbf**: All OSM roads within the
+  transit agency region.
 
-- cdta_lodes_residence_area_characteristics.freeform.csv.zip:
+- **cdta_lodes_residence_area_characteristics.freeform.csv.zip**:
   [Freeform](https://docs.conveyal.com/prepare-inputs/upload-spatial-data#freeform-non-grid-points)
   CDTA region extract of the Census LODES Residence Area Characteristics file.
 
@@ -72,7 +73,7 @@ CDTA's region.
     - "sex: male"
     - "sex: female"
 
-- cdta_lodes_workplace_area_characteristics.freeform.csv.zip:
+- **cdta_lodes_workplace_area_characteristics.freeform.csv.zip**:
   [Freeform](https://docs.conveyal.com/prepare-inputs/upload-spatial-data#freeform-non-grid-points)
   CDTA region extract of the Census LODES Workplace Area Characteristics file.
 
@@ -133,24 +134,24 @@ CDTA's region.
     - "firm size: 250-499 employees"
     - "firm size: 500+ employees"
 
-- cdta_lodes_residence_area_characteristics.grid.csv.zip:
+- **cdta_lodes_residence_area_characteristics.grid.csv.zip**:
   [Non-freeform](https://docs.conveyal.com/prepare-inputs/upload-spatial-data#freeform-non-grid-points)
   CDTA region extract of the Census LODES Residence Area Characteristics file.
 
   - Columns are the same as the freeform file with the omission of `h_geocode`.
 
-- cdta_lodes_workplace_area_characteristics.grid.csv.zip:
+- **cdta_lodes_workplace_area_characteristics.grid.csv.zip**:
   [Non-freeform](https://docs.conveyal.com/prepare-inputs/upload-spatial-data#freeform-non-grid-points)
   CDTA region extract of the Census LODES Workplace Area Characteristics file.
 
   - Columns are the same as the freeform file with the omission of `w_geocode`.
 
-- cdta_lodes_origin_destination.csv.zip: CDTA region extract of the Census
+- **cdta_lodes_origin_destination.csv.zip**: CDTA region extract of the Census
   LODES Origin-Destination file.
 
-- cdta_lodes_wac.csv: Legacy LODES Workplace Area Characteristics file. Same
+- **cdta_lodes_wac.csv**: Legacy LODES Workplace Area Characteristics file. Same
   structure as files generated before October 15, 2021.
 
-- cdta_park_and_rides.csv: All park and ride lots within walking distance to
+- **cdta_park_and_rides.csv**: All park and ride lots within walking distance to
   bus routes. The file was created using 511mobility's [Park & Ride Lot Profile
   Pages](https://maps.511mobility.org/parkAndRideProfile/list?offset=0&max=1000).
