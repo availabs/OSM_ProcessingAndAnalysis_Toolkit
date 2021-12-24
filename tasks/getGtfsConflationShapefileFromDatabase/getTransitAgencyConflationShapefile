@@ -1,0 +1,40 @@
+#!/bin/bash
+
+set -e
+
+. ../../config/postgres.env.prod
+
+# NOTE: Now MTA comprised of (bronx_bus, brooklyn_bus, manhattan_bus, queens_bus, staten_island_bus)
+# AGENCY='mta_metropolitan_transportation_authority_developer_s_page'
+# GPKG_NAME='mta-conflation.2020_v0_6_0.gpkg'
+
+AGENCY='cdta'
+GPKG_NAME="${AGENCY}-conflation.2020_v0_6_0.gpkg"
+
+rm -f "$GPKG_NAME"*
+
+ogr2ogr \
+  -f GPKG \
+  -skipfailures \
+  "$GPKG_NAME" \
+  PG:"host=$PGHOST user=$PGUSER dbname=$PGDATABASE password=$PGPASSWORD" \
+  -sql "
+    SELECT
+        a.id,
+        wkb_geometry
+      FROM conflation.conflation_map_2020_v0_6_0 AS a
+        INNER JOIN (
+          SELECT DISTINCT
+              id
+            FROM (
+              SELECT
+                  conflation_map_id AS id,
+                  jsonb_object_keys(bus_counts_by_agency_route) AS k
+                FROM transit_conflation.transit_conflation_2020_v0_6_0
+              ) AS t
+            WHERE (
+              starts_with( k, '${AGENCY}' )
+            )
+          ) AS t USING (id)
+  " \
+  -nln mta_conflation_2020_v0_6_0

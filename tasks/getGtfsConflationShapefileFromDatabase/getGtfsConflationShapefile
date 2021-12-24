@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -e
+
+. ../../config/postgres.env.prod
+
+GPKG_NAME='gtfs-conflation.2020_v0_6_0.gpkg'
+
+rm -f "$GPKG_NAME"*
+
+ogr2ogr \
+  -f GPKG \
+  -skipfailures \
+  "$GPKG_NAME" \
+  PG:"host=$PGHOST user=$PGUSER dbname=$PGDATABASE password=$PGPASSWORD" \
+  -sql "
+    SELECT DISTINCT
+        a.id,
+        b.total_bus_counts as bus_aadt,
+        a.wkb_geometry
+      FROM conflation.conflation_map_2020_v0_6_0 AS a
+        INNER JOIN transit_conflation.transit_conflation_2020_v0_6_0 AS b
+          ON ( a.id = b.conflation_map_id )
+  " \
+  -nln gtfs_conflation_2020_v0_6_0
