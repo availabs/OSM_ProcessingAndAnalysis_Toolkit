@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set -e
+
+pushd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null
+
+cd ./versions/3.4.0/ubuntu-full/
+
+docker \
+  build \
+    --tag avail/osgeo-gdal-ubuntu-full:3.4.0 \
+    --build-arg GDAL_VERSION=v3.4.0 \
+    --build-arg WITH_FILEGDB=yes \
+  .
+
+popd >/dev/null

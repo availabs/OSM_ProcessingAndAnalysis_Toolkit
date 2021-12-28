@@ -1,0 +1,6 @@
+Sending build context to Docker daemon  34.82kB
+Step 1/67 : ARG BASE_IMAGE=ubuntu:20.04
+Step 2/67 : ARG TARGET_BASE_IMAGE=ubuntu:20.04
+Step 3/67 : FROM $BASE_IMAGE as builder
+20.04: Pulling from library/ubuntu
+7b1a6ab2e44d: Pulling fs layer
