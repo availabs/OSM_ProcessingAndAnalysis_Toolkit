@@ -6,6 +6,12 @@ This repository is intended to facilitate cross-project GIS dataset consistency
 and simplified data provenance archiving by standardizing and centralizing
 the processing, versioning, and analysis of GIS datasets.
 
+## System Level Dependencies
+
+- ogr2ogr
+- zip
+- unzip
+
 ## Running in Docker
 
 For FileGDB support, you may need to run in a Docker container with a special build of GDAL.
@@ -45,6 +51,10 @@ The following rules are intended to promote cross-project consistency and facili
 - [wiki](https://wiki.openstreetmap.org/wiki/Main_Page)
 - [useful resources](https://labs.mapbox.com/mapping/becoming-a-power-mapper/useful-osm-resources/)
 - [Geofabrik region extracts](http://download.geofabrik.de/openstreetmap/)
+
+  - [Geofabrik US Northeast](http://download.geofabrik.de/north-america/us-northeast.html#)
+
+    The Conflation Pipelien uses the US Northeast OSM YY0101 versions.
 
 - [TIGER to OSM Attribute Map](https://wiki.openstreetmap.org/wiki/TIGER_to_OSM_Attribute_Map)
 
