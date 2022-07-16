@@ -1,0 +1,20 @@
+#!/bin/bash
+
+set -e
+set -a
+
+pushd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null
+
+source ./config/postgres.env.prod
+source ./config/env
+
+psql -c "
+  COPY (
+    SELECT
+        *
+      FROM ny.tmc_metadata_$YEAR
+      WHERE (county_code = '$COUNTY_CODE')
+  ) TO STDOUT WITH CSV HEADER
+" > data/tmc_metadata_$YEAR.csv
+
+popd >/dev/null

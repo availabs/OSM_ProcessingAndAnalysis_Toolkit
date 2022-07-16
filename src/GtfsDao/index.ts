@@ -1,6 +1,7 @@
 import EventEmitter from 'events';
 import { createReadStream } from 'fs';
 import { pipeline } from 'stream';
+import { promisify } from 'util';
 
 import * as turf from '@turf/turf';
 import unzipper from 'unzipper';
@@ -10,8 +11,38 @@ import pEvent from 'p-event';
 
 import { getGeometriesConvexHullAsync } from '../utils/hulls';
 
-export default class NpmrdsDao {
+const pipelineAsync = promisify(pipeline);
+
+export default class GtfsDao {
   constructor(readonly gtfsFeedZipPath: string) {}
+
+  async getFeedDateRange() {
+    let feedStartDate: string = '9';
+    let feedEndDate: string = '0';
+
+    await pipelineAsync(
+      createReadStream(this.gtfsFeedZipPath),
+      unzipper.ParseOne(/^calendar.txt$/),
+      csv.parse({ headers: true }),
+      through.obj(function fn({ start_date, end_date }, _$, cb) {
+        if (start_date < feedStartDate) {
+          feedStartDate = start_date;
+        }
+
+        if (end_date > feedEndDate) {
+          feedEndDate = end_date;
+        }
+
+        cb();
+      }),
+    );
+
+    if (feedStartDate === '9' || feedEndDate === '0') {
+      return null;
+    }
+
+    return [feedStartDate, feedEndDate];
+  }
 
   makeShapeLineStringsAsyncGenerator() {
     let curShapeId = null;
@@ -34,9 +65,13 @@ export default class NpmrdsDao {
 
       // console.log(JSON.stringify({ curCoords, coords }, null, 4));
 
-      const lineString = turf.lineString(coords);
+      if (coords.length >= 2) {
+        const lineString = turf.lineString(coords);
 
-      geomEmitter.emit('data', lineString);
+        geomEmitter.emit('data', lineString);
+      } else {
+        console.warn('shape omitted because coords.length < 2');
+      }
     };
 
     // Create Generator for getGeometriesConvexHull

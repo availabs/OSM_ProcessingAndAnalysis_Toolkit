@@ -1,0 +1,37 @@
+#!/bin/bash
+
+set -e
+set -a
+
+pushd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null
+
+source ./config/postgres.env.prod
+source ./config/env
+
+ogr2ogr \
+  -f 'GPKG' \
+  -skipfailures \
+  -s_srs EPSG:4326 \
+  -t_srs EPSG:4326 \
+  "./data/transcom_events.gpkg" \
+  PG:"host=$PGHOST user=$PGUSER dbname=$PGDATABASE password=$PGPASSWORD" \
+  -nln transcom_events \
+  -sql "
+    SELECT
+        *
+      FROM transcom._transcom_historical_events AS a
+        INNER JOIN public.tl_2017_us_county AS b
+          ON (ST_Intersects(b.geom, a.point_geom))
+        WHERE (
+          ( b.geoid = '$COUNTY_CODE' )
+          AND
+          (
+            (EXTRACT(YEAR FROM open_time) = $YEAR)
+            AND
+            (EXTRACT(YEAR FROM close_time) = $YEAR)
+          )
+        )
+        ORDER BY RANDOM()
+  "
+
+popd >/dev/null

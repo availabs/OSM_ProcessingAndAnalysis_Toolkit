@@ -1,0 +1,20 @@
+#!/bin/bash
+
+set -e
+
+agency_name="$1"
+
+echo createGtfsAgencyFeedDateRanges
+../../node_modules/.bin/ts-node createGtfsAgencyFeedDateRanges.ts "$agency_name"
+
+echo createGtfsAgencyPolys
+../../node_modules/.bin/ts-node createGtfsAgencyPolys.ts "$agency_name"
+
+echo createGtfsShapesShapefile
+../../node_modules/.bin/ts-node createGtfsShapesShapefile.ts "$agency_name"
+
+echo createGtfsAgencyOsmExtract
+../../node_modules/.bin/ts-node createGtfsAgencyOsmExtract.ts "$agency_name"
+
+echo createGtfsAgencyBundle
+../../node_modules/.bin/ts-node createGtfsAgencyBundle.ts "$agency_name"

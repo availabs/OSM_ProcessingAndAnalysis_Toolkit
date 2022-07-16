@@ -1,0 +1,40 @@
+#!/bin/bash
+
+set -e
+set -a
+
+pushd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null
+
+source ./config/postgres.env.prod
+source ./config/env
+
+mkdir -p data
+
+psql -At > data/schema-only.sql <<"__END__"
+  SELECT
+      pg_get_functiondef(f.oid) || ' ;'
+    FROM pg_catalog.pg_proc f
+      INNER JOIN pg_catalog.pg_namespace n
+        ON (f.pronamespace = n.oid)
+    WHERE n.nspname = 'transcom';
+__END__
+
+echo '
+' >> data/schema-only.sql
+
+pg_dump \
+    --dbname=npmrds_production \
+    --no-owner \
+    --schema-only \
+    --table='public.traffic_dist_congestion_level_type' \
+    --table="public.tmc_metadata_$YEAR" \
+    --table="conflation.conflation_map_${YEAR}_$CONFLATION_VERSION" \
+    --table="conflation.conflation_map_${YEAR}_ways_$CONFLATION_VERSION" \
+    --table="conflation.conflation_map_${YEAR}_nodes_$CONFLATION_VERSION" \
+    --table="ny.tmc_metadata_$YEAR" \
+    --table='transcom._transcom_historical_events' \
+  | sed 's/public.traffic_dist_congestion_level_type/TEXT/' \
+  | sed 's/public.traffic_dist_directionality_type/TEXT/' \
+ >> data/schema-only.sql
+
+popd >/dev/null

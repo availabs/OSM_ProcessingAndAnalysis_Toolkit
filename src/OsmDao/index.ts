@@ -15,6 +15,7 @@ import {
   rmdirSync,
   openSync,
 } from 'fs';
+
 import { join } from 'path';
 import gdal, { Dataset } from 'gdal-next';
 import * as turf from '@turf/turf';
@@ -68,7 +69,7 @@ export default class OsmDao {
     return n;
   }
 
-  readonly osmVersionExtractName: string;
+  readonly osmBaseVersionExtractName: string;
   readonly osmVersionExtractDir: string;
   readonly pbfFileName: string;
   readonly gpkgFileName: string;
@@ -77,17 +78,17 @@ export default class OsmDao {
   protected _pbfDataset: Dataset | null;
   protected _gpkgDataset: Dataset | null;
 
-  constructor(osmVersionExtractName: string) {
+  constructor(osmBaseVersionExtractName: string) {
     // ABSOLUTELY MUST sanitize because used in execSync below.
-    if (!isValidOsmVersionExtractName(osmVersionExtractName)) {
+    if (!isValidOsmVersionExtractName(osmBaseVersionExtractName)) {
       throw new Error(
-        `Invalid osmVersionExtractName: ${osmVersionExtractName}`,
+        `Invalid osmBaseVersionExtractName: ${osmBaseVersionExtractName}`,
       );
     }
 
-    this.osmVersionExtractName = osmVersionExtractName;
+    this.osmBaseVersionExtractName = osmBaseVersionExtractName;
     this.osmVersionExtractDir = OsmDao.getExtractDirectoryPath(
-      this.osmVersionExtractName,
+      this.osmBaseVersionExtractName,
     );
 
     if (!existsSync(this.osmVersionExtractDir)) {
@@ -96,17 +97,17 @@ export default class OsmDao {
       );
     }
 
-    this.pbfFileName = join(`${this.osmVersionExtractName}.osm.pbf`);
-    this.gpkgFileName = join(`${this.osmVersionExtractName}.osm.gpkg`);
+    this.pbfFileName = join(`${this.osmBaseVersionExtractName}.osm.pbf`);
+    this.gpkgFileName = join(`${this.osmBaseVersionExtractName}.osm.gpkg`);
 
     this.pbfFilePath = join(
       this.osmVersionExtractDir,
-      `${this.osmVersionExtractName}.osm.pbf`,
+      `${this.osmBaseVersionExtractName}.osm.pbf`,
     );
 
     this.gpkgFilePath = join(
       this.osmVersionExtractDir,
-      `${this.osmVersionExtractName}.osm.gpkg`,
+      `${this.osmBaseVersionExtractName}.osm.gpkg`,
     );
 
     this._pbfDataset = null;
@@ -138,8 +139,6 @@ export default class OsmDao {
     }
 
     this.verifyOgr2OgrInstalled();
-
-    console.log('creating GPKG');
 
     // Using ogr2ogr to create the GPKG because doing everything in node-gdal
     //   is more complicated and error prone. Also, eventual FileGDB support important.
@@ -178,8 +177,6 @@ export default class OsmDao {
           FROM multipolygons
           WHERE ( ${whereClause} )
       `;
-
-      console.log(sql);
 
       // NOTE: This could be replaced with call to ogr2ogr -f GeoJSON ....
       //       Which would allow us to use node-gdal rather than node-gdal-next.
@@ -222,10 +219,9 @@ export default class OsmDao {
     return polyfileData;
   }
 
-  createExtract(extractName: string, query: OsmMultipolygonQueryObj) {
-    console.log(extractName);
+  private extract(extractName: string, poly: string) {
     if (!isValidOsmVersionExtractName(extractName)) {
-      throw new Error(`Invalid osmVersionExtractName: ${extractName}`);
+      throw new Error(`Invalid osmBaseVersionExtractName: ${extractName}`);
     }
 
     const extractDirPath = OsmDao.getExtractDirectoryPath(extractName);
@@ -238,7 +234,6 @@ export default class OsmDao {
 
     mkdirSync(extractDirPath, { recursive: true });
 
-    const poly = this.getOsmosisFilterPoly(extractName, query);
     const polyFilePath = join(extractDirPath, `${extractName}.poly`);
 
     writeFileSync(polyFilePath, poly);
@@ -259,13 +254,28 @@ export default class OsmDao {
     execSync(`xz -9 ${polyFilePath}`);
   }
 
+  createPolygonExtract(
+    extractName: string,
+    poly: turf.Feature<turf.MultiPolygon>,
+  ) {
+    const osmosisFilter = getOsmosisExtractFilter(poly, extractName);
+
+    this.extract(extractName, osmosisFilter);
+  }
+
+  createExtract(extractName: string, query: OsmMultipolygonQueryObj) {
+    const poly = this.getOsmosisFilterPoly(extractName, query);
+
+    this.extract(extractName, poly);
+  }
+
   getMultiPolygonQueryForAdminRegion(
     adminLevel: OsmAdministrationLevel,
     name: OsmAdministrationAreaName,
   ) {
     return {
       type: 'boundary',
-      boundary: 'administrative',
+      // boundary: 'administrative', // Causes Westchester 210101 to fail.
       admin_level: osmBoundaryAdministrationLevelCodes[adminLevel],
       name,
     };
@@ -276,7 +286,7 @@ export default class OsmDao {
       throw new Error(`Invalid extractAreaName: ${extractAreaName}`);
     }
 
-    const extractName = `${extractAreaName}_${this.osmVersionExtractName}`;
+    const extractName = `${extractAreaName}_${this.osmBaseVersionExtractName}`;
 
     return extractName;
   }
@@ -302,7 +312,7 @@ export default class OsmDao {
       name,
     );
 
-    const extractName = `${cleanedName}_${this.osmVersionExtractName}`;
+    const extractName = `${cleanedName}_${this.osmBaseVersionExtractName}`;
 
     return extractName;
   }
@@ -339,7 +349,7 @@ export default class OsmDao {
   }
 
   get vrtFileName() {
-    return `${this.osmVersionExtractName}.vrt`;
+    return `${this.osmBaseVersionExtractName}.vrt`;
   }
 
   get vrtFilePath() {
@@ -351,7 +361,7 @@ export default class OsmDao {
   createVRTFile() {
     // NOTE: SrcSQL could be used to create thematic layers.
     const vrt = `<OGRVRTDataSource>
-    <OGRVRTUnionLayer name="${this.osmVersionExtractName}">
+    <OGRVRTUnionLayer name="${this.osmBaseVersionExtractName}">
         <OGRVRTLayer name="points">
             <SrcDataSource>${this.pbfFileName}</SrcDataSource>
             <SrcLayer>points</SrcLayer>
@@ -386,8 +396,11 @@ export default class OsmDao {
       this.osmVersionExtractDir,
       'ESRI_Shapefile',
     );
-    // const shapefilePath = join(shapefileParentDir, this.osmVersionExtractName);
-    const shapefilePath = join(shapefileParentDir, this.osmVersionExtractName);
+    // const shapefilePath = join(shapefileParentDir, this.osmBaseVersionExtractName);
+    const shapefilePath = join(
+      shapefileParentDir,
+      this.osmBaseVersionExtractName,
+    );
 
     if (existsSync(shapefilePath)) {
       throw new Error(`${shapefilePath} already exists.`);
@@ -442,7 +455,7 @@ export default class OsmDao {
   }
 
   createXml() {
-    const xmlFileName = `${this.osmVersionExtractName}.osm`;
+    const xmlFileName = `${this.osmBaseVersionExtractName}.osm`;
     const xmlPath = join(this.osmVersionExtractDir, xmlFileName);
 
     const command = `${osmosisExecutablePath} \
@@ -455,7 +468,7 @@ export default class OsmDao {
   }
 
   createGeoJSON() {
-    const geoJsonFileName = `${this.osmVersionExtractName}.osm.geojson`;
+    const geoJsonFileName = `${this.osmBaseVersionExtractName}.osm.geojson`;
 
     this.createVRTFile();
 
@@ -473,7 +486,7 @@ export default class OsmDao {
   }
 
   createRoadwaysGeoJSON() {
-    const roadwaysGeoJsonFileName = `${this.osmVersionExtractName}.roadways.geojson`;
+    const roadwaysGeoJsonFileName = `${this.osmBaseVersionExtractName}.roadways.geojson`;
 
     this.verifyOgr2OgrInstalled();
 
@@ -494,7 +507,7 @@ export default class OsmDao {
   }
 
   createRoadwaysShapefile() {
-    const roadwaysShapefileName = `${this.osmVersionExtractName}_roadways`;
+    const roadwaysShapefileName = `${this.osmBaseVersionExtractName}_roadways`;
     const log = 'shapefile_creation.log';
     const roadwaysShapefilePath = join(
       this.osmVersionExtractDir,

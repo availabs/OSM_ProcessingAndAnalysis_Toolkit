@@ -1,0 +1,49 @@
+#!/bin/bash
+
+set -e
+set -a
+
+pushd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null
+
+source ./config/postgres.env.dev
+source ./config/env
+
+INPUT_GPKG="./data/conflation_map_${YEAR}_$CONFLATION_VERSION.gpkg"
+
+ogr2ogr \
+  -f 'GPKG' \
+  PG:"host=$PGHOST user=$PGUSER dbname=$PGDATABASE password=$PGPASSWORD" \
+  -skipfailures \
+  -overwrite \
+  -s_srs EPSG:4326 \
+  -t_srs EPSG:4326 \
+  $INPUT_GPKG \
+  conflation_map \
+  -nln "conflation.conflation_map_${YEAR}_${CONFLATION_VERSION}"
+
+ogr2ogr \
+  -f 'GPKG' \
+  PG:"host=$PGHOST user=$PGUSER dbname=$PGDATABASE password=$PGPASSWORD" \
+  -skipfailures \
+  -overwrite \
+  -s_srs EPSG:4326 \
+  -t_srs EPSG:4326 \
+  $INPUT_GPKG \
+  conflation_map_nodes \
+  -nln "conflation.conflation_map_${YEAR}_nodes_${CONFLATION_VERSION}"
+
+cat ./data/conflation_map_2021_ways_v0_6_0.csv \
+  | psql -c '
+      BEGIN;
+
+      TRUNCATE conflation.conflation_map_2021_ways_v0_6_0 ;
+
+      COPY conflation.conflation_map_2021_ways_v0_6_0
+        FROM STDIN WITH CSV HEADER
+      ;
+
+      COMMIT ;
+    '
+
+popd >/dev/null
+

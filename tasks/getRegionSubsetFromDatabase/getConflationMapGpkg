@@ -1,0 +1,72 @@
+#!/bin/bash
+
+set -e
+set -a
+
+pushd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null
+
+source ./config/postgres.env.prod
+source ./config/env
+
+OUTPUT_GPKG="./data/conflation_map_${YEAR}_$CONFLATION_VERSION.gpkg"
+
+rm -f $OUTPUT_GPKG
+
+ogr2ogr \
+  -f 'GPKG' \
+  -skipfailures \
+  -overwrite \
+  -s_srs EPSG:4326 \
+  -t_srs EPSG:4326 \
+  $OUTPUT_GPKG \
+  PG:"host=$PGHOST user=$PGUSER dbname=$PGDATABASE password=$PGPASSWORD" \
+  -nln conflation_map \
+  -sql "
+    SELECT
+        a.*
+      FROM conflation.conflation_map_${YEAR}_$CONFLATION_VERSION AS a
+        INNER JOIN public.tl_2017_us_county AS b
+          ON (ST_Intersects(b.geom, a.wkb_geometry))
+        WHERE ( b.geoid = '$COUNTY_CODE' )
+  "
+
+ogr2ogr \
+  -f 'GPKG' \
+  -skipfailures \
+  -overwrite \
+  -s_srs EPSG:4326 \
+  -t_srs EPSG:4326 \
+  $OUTPUT_GPKG \
+  PG:"host=$PGHOST user=$PGUSER dbname=$PGDATABASE password=$PGPASSWORD" \
+  -nln conflation_map_nodes \
+  -sql "
+    SELECT
+        a.*
+      FROM conflation.conflation_map_${YEAR}_nodes_$CONFLATION_VERSION AS a
+        INNER JOIN (
+          SELECT
+              UNNEST(node_ids) AS id
+            FROM conflation.conflation_map_${YEAR}_$CONFLATION_VERSION AS a
+              INNER JOIN public.tl_2017_us_county AS b
+                ON (ST_Intersects(b.geom, a.wkb_geometry))
+              INNER JOIN conflation.conflation_map_${YEAR}_ways_$CONFLATION_VERSION AS c
+                ON (a.id = c.id)
+            WHERE ( b.geoid = '$COUNTY_CODE' )
+        ) AS b USING (id)
+  "
+
+psql -c "
+  COPY (
+    SELECT
+        c.id,
+        c.node_ids
+      FROM conflation.conflation_map_${YEAR}_$CONFLATION_VERSION AS a
+        INNER JOIN public.tl_2017_us_county AS b
+          ON (ST_Intersects(b.geom, a.wkb_geometry))
+        INNER JOIN conflation.conflation_map_${YEAR}_ways_$CONFLATION_VERSION AS c
+          ON (a.id = c.id)
+      WHERE ( b.geoid = '$COUNTY_CODE' )
+  ) TO STDOUT WITH CSV HEADER
+" > data/conflation_map_${YEAR}_ways_$CONFLATION_VERSION.csv
+
+popd >/dev/null
