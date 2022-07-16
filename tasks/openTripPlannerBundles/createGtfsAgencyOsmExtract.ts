@@ -42,6 +42,8 @@ async function main() {
   osmDao.createPolygonExtract(extractName, multipoly);
 
   const extractDir = join(osmDataDir, extractName);
+
+  await rm(join(dataDir, regionName, 'osm'), { recursive: true, force: true });
   await rename(extractDir, join(dataDir, regionName, 'osm'));
   await rm(join(dataDir, regionName, 'osm', `${extractName}.poly.xz`));
 }

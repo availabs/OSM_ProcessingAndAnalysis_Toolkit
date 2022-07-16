@@ -1,0 +1,7 @@
+java \
+  --add-opens=java.base/java.lang=ALL-UNNAMED \
+  --add-opens=java.base/java.lang.reflect=ALL-UNNAMED \
+  --add-opens=java.base/java.io=ALL-UNNAMED \
+  -Xmx2G \
+  -jar ./lib/otp-2.1.0-shaded.jar \
+  --load bundles/yates

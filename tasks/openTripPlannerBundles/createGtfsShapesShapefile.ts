@@ -31,17 +31,15 @@ async function main() {
   const gtfsFeedPaths = regionGtfsFeedPaths[regionName];
 
   for (const gtfsFeedPath of gtfsFeedPaths) {
-    const agencyName = _.snakeCase(
-      basename(gtfsFeedPath, '.zip').toLowerCase(),
-    );
+    const fBaseName = basename(gtfsFeedPath, '.zip');
 
-    console.log(`\t${agencyName}`);
+    console.log(`\t${fBaseName}`);
 
     const dao = new GtfsDao(gtfsFeedPath);
 
     const feedShapesGeoJsonPath = join(
       regionGtfsShapesDir,
-      `${agencyName}.shapes.geojson`,
+      `${fBaseName}.shapes.geojson`,
     );
 
     const ws = createWriteStream(feedShapesGeoJsonPath);

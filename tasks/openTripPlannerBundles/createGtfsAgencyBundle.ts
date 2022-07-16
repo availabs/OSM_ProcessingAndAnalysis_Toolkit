@@ -81,8 +81,8 @@ async function main() {
     await rm(bundleDir, { recursive: true, force: true });
     await mkdir(bundleDir, { recursive: true });
 
-    // await copyGtfsFiles();
-    // await copyOsmFile();
+    await copyGtfsFiles();
+    await copyOsmFile();
     await createBuildConfig();
   } catch (err) {
     console.error(err.message);
