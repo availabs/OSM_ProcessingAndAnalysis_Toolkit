@@ -30,3 +30,5 @@ The transit-admin.511ny.org [NYSDOT / Metro-North Railroad](https://transit-admi
 ```
 Error (404) making get request to /api/manager/secure/feedversionsummaries?feedSourceId=f3bfba4d-7137-49e7-8796-a53efc989458
 ```
+
+For this reason, I downloaded the Metro-North GTFS Feed from the [MTA web site](http://web.mta.info/developers/data/mnr/google_transit.zip)
