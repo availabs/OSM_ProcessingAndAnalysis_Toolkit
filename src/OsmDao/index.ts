@@ -14,10 +14,11 @@ import {
   chmodSync,
   rmdirSync,
   openSync,
+  readFileSync,
 } from 'fs';
 
 import { join } from 'path';
-import gdal, { Dataset } from 'gdal-next';
+import gdal, { Dataset } from 'gdal-async';
 import * as turf from '@turf/turf';
 
 import osmDir from '../constants/osmDataDir';
@@ -42,6 +43,11 @@ export type OsmMultipolygonQueryObj = Record<string, string | number>;
 
 const osmRoadwaysSqlPath = join(__dirname, './osm_roadways.sql');
 const osmRoadwayConfigFilePath = join(__dirname, './roadways_osmconf.ini');
+
+const osmSidewalksSqlPath = join(__dirname, './osm_sidewalks.sql');
+const osmSidewalksConfigFilePath = join(__dirname, './sidewalks_osmconf.ini');
+
+const nysdotRegionPolysDir = join(__dirname, '../../data/nysdot/region_boundaries');
 
 export default class OsmDao {
   static getExtractDirectoryPath(extractName: string) {
@@ -348,6 +354,22 @@ export default class OsmDao {
     this.createExtract(extractName, q);
   }
 
+  createNYSDOTRegionExtract(
+    regionNumber: Number
+  ) {
+    const region = `nysdot-region-${regionNumber}`
+
+    const regionBoundaryPath = join(nysdotRegionPolysDir, `${region}.geojson`)
+
+    const poly = JSON.parse(
+      readFileSync(regionBoundaryPath, {encoding: 'utf8'})
+    )
+
+    const extractName = `${region}_${this.osmBaseVersionExtractName}`;
+
+    return this.createPolygonExtract(extractName, poly)
+  }
+
   get vrtFileName() {
     return `${this.osmBaseVersionExtractName}.vrt`;
   }
@@ -535,6 +557,44 @@ export default class OsmDao {
       {
         cwd: this.osmVersionExtractDir,
         env: { ...process.env, OSM_CONFIG_FILE: osmRoadwayConfigFilePath },
+        stdio: ['inherit', logFileFd, logFileFd],
+      },
+    );
+  }
+
+  createSidewalksShapefile() {
+    const sidewalksShapefileName = `${this.osmBaseVersionExtractName}_sidewalks`;
+
+    const log = 'shapefile_creation.log';
+
+    const sidewalksShapefilePath = join(
+      this.osmVersionExtractDir,
+      sidewalksShapefileName,
+    );
+    const logPath = join(sidewalksShapefilePath, log);
+
+    if (existsSync(sidewalksShapefilePath)) {
+      rmdirSync(sidewalksShapefilePath, { recursive: true });
+    }
+    mkdirSync(sidewalksShapefilePath, { recursive: true });
+
+    const logFileFd = openSync(logPath, 'w');
+
+    this.verifyOgr2OgrInstalled();
+
+    execSync(
+      `ogr2ogr \
+      -overwrite \
+      -skipfailures \
+      -nln 'sidewalks' \
+      -f 'ESRI Shapefile' \
+      -sql '@${osmSidewalksSqlPath}' \
+      '${sidewalksShapefileName}' \
+      '${this.pbfFileName}'
+    `,
+      {
+        cwd: this.osmVersionExtractDir,
+        env: { ...process.env, OSM_CONFIG_FILE: osmSidewalksConfigFilePath },
         stdio: ['inherit', logFileFd, logFileFd],
       },
     );
